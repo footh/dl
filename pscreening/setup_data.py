@@ -155,38 +155,90 @@ def label_dict(label_file):
             cur_id = id
             
         return label_dict
-      
-def setup_data(src_dir, numTrain=None, numValid=None, numTest=None, transform=False):
-    print('Clearing train directory...')
-    remove_files('train/unknown')
-    print('Clearing valid directory...')
-    remove_files('valid/unknown')
-    print('Clearing test directory...')
-    remove_files('test/unknown')
-    
-    src_files = os.listdir(src_dir)
-    total_files = len(src_files)
-    print('Found %s files' % total_files)
-    
-    shuffled_files = np.random.permutation(src_files)
-    
-    # Max of 20% of total is allowed for valid and test sets
-    max_non_training = math.floor(total_files * 0.20)
-    valid_count = max_non_training
-    if numValid is not None:
-        valid_count = min(max_non_training, numValid)
 
-    test_count = max_non_training
-    if numTest is not None:
-        test_count = min(max_non_training, numTest)    
-         
-    print('Copying %s validation files' % valid_count)
-    copy_files(shuffled_files[:valid_count], src_dir, 'valid/unknown', transform=transform)
+# ----------------------------------------------------------------------------------------------
+# algorithmic zone extraction
+COLUMN_MARGIN = 20 # Amount of pixels out to start looking at columns (avoiding uninteresting space on the side margins)
     
-    print('Copying %s test files' % test_count)
-    copy_files(shuffled_files[valid_count:(valid_count + test_count)], src_dir, 'test/unknown', transform=transform)
+PIXEL_THRESHOLD = 25 # Pixel intensity value threshold to be considered 'interesting'
+TORSO_WINDOW = 150 # Pixel width used to detect torso
+TORSO_MIN = 140 # Number of pixels in torso window that must pass threshold to be considered part of torso
+TORSO_MARGIN = 100 # Once torso is found, the margin of columns used to see if we're still in the torso
+
+def torso_begin(imga):
+    """
+        Returns the row and column of input image array where the beginning of the torso is detected
+    """    
     
-    print('Copying %s training files' % (total_files - (valid_count + test_count)))
-    copy_files(shuffled_files[(valid_count + test_count):], src_dir, 'train/unknown', transform=transform)
+    rows, columns = imga.shape
+    
+    torso_begin_row = None
+    torso_begin_column = None
+    for i in range(rows-1, -1, -1):
+        row = imga[i]
+        for j in range(COLUMN_MARGIN, columns - COLUMN_MARGIN):
+            if torso_begin_row is None:
+                if (row[j:j+TORSO_WINDOW] > PIXEL_THRESHOLD).sum() >= TORSO_MIN:
+                    torso_begin_row = i
+                    torso_begin_column = j
+                    
+            if torso_begin_row is not None:
+                break
+            
+        if torso_begin_row is not None:
+            break
+
+    return torso_begin_row, torso_begin_column
+
+def torso_end(imga, begin_point):
+    """
+        Returns the row of input image array where the end of the torso is detected. Starts looking
+        at the begin_point tuple
+    """
+    torso_begin_row, torso_begin_column = begin_point
+    
+    torso_end_row = None
+    for i in range(torso_begin_row-1, -1, -1):  #TODO: can probably start on an arbitrarily higher row
+        row = imga[i]
         
-        
+        j = torso_begin_column
+        while (j < torso_begin_column + TORSO_MARGIN):
+            j = j + 1
+            if (row[j:j+TORSO_WINDOW] > PIXEL_THRESHOLD).sum() >= TORSO_MIN:
+                break
+    
+        if j == torso_begin_column + TORSO_MARGIN:
+            torso_end_row = i
+            break
+    
+    return torso_end_row
+    
+def create_zones(file=None, slice=0, src_dir='data'):
+
+    # Read first file from shuffled list
+    if file is None:
+        file = shuffled_files(src_dir)[0]
+        print(file)
+
+    file_data = util.read_data(file)
+    img = np.flipud(file_data[:,:,slice].transpose())
+    img = scipy.misc.toimage(img, channel_axis=2)
+    imga = np.asarray(img)
+    
+    rows, columns = imga.shape
+    
+    torso_begin_row, torso_begin_column = torso_begin(imga)
+    
+    torso_end_row = torso_end(imga, (torso_begin_row, torso_begin_column))
+    
+    draw = ImageDraw.Draw(img)
+    draw.line([(0, torso_begin_row), (columns-1, torso_begin_row)], fill='white')
+    draw.line([(0, torso_end_row), (columns-1, torso_end_row)], fill='white')
+    del draw
+    
+    img.save('aatestfile.png')
+    
+    print("torso_begin_row: %s" % str(torso_begin_row))
+    print("torso_begin_column: %s" % str(torso_begin_column))
+    print("torso_end_row: %s" % str(torso_end_row))
+    return imga
