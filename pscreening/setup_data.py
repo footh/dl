@@ -130,6 +130,7 @@ def generate_image_slices_zones(zone_file='zones.csv', src_dir='data', dest_dir=
             draw.rectangle([rect[0], rect[1], rect[0]+rect[2], rect[1]+rect[3]], outline='white')
             draw.text((rect[0]+2, rect[1]+2), key, fill='white')            
 
+        del draw
         #scipy.misc.imsave(os.path.join('scratch', str(i) + 'z.png'), np.asarray(img))
         img.save(os.path.join(dest_dir, str(i) + 'z.png'))
     
@@ -158,13 +159,63 @@ def label_dict(label_file):
 
 # ----------------------------------------------------------------------------------------------
 # algorithmic zone extraction
-COLUMN_MARGIN = 20 # Amount of pixels out to start looking at columns (avoiding uninteresting space on the side margins)
+COLUMN_MARGIN = 30 # Amount of pixels out to start looking at columns (avoiding uninteresting space on the side margins)
     
 PIXEL_THRESHOLD = 25 # Pixel intensity value threshold to be considered 'interesting'
 TORSO_WINDOW = 150 # Pixel width used to detect torso
 TORSO_MIN = 140 # Number of pixels in torso window that must pass threshold to be considered part of torso
 TORSO_MARGIN = 100 # Once torso is found, the margin of columns used to see if we're still in the torso
 
+WINDOW_SIZE = 10
+
+PEAK_SLOPE_THRESHOLD = 4000
+
+def peaks(row, slope_threshold=PEAK_SLOPE_THRESHOLD):
+    """
+        Returns the number of peaks detected in a row of data
+    """
+    row = [-1, 0, 1, -2, 3, 13, 13, 40, 26, 54, 68, -10, 85, 200, 2953, 3873, 3954, -2535, -5945, 2494, 1885, 3075, -982, -2812, -837, 5942, -724, -3394, -5476, -1588, -41, -108, -62, -10, -53, -14, -54, -11, 2, -13, -2, -6, 15, 11, 0]
+    
+    slopes = np.asarray(row, dtype=np.int64)
+    slopes = [(data[1]-data[0]) for data in zip(slopes[:], slopes[1:])]
+    
+    peak_count = 0
+    peak_sum = 0
+    peak_top = 0
+    peak_hit = False
+    for slope in slopes:
+        peak_sum += slope
+        peak_sum = max(0, peak_sum)
+        
+        if peak_hit:
+            if peak_top - peak_sum > slope_threshold:
+                peak_count += 1            
+                peak_sum = 0
+                peak_hit = False
+        
+        if peak_sum > slope_threshold:
+            peak_hit = True
+            peak_top = peak_sum            
+
+    return peak_count
+
+peaks()
+
+def torso_test(imga):
+    rows, columns = imga.shape
+    
+    crows = []
+    idx = []
+    for i in range(rows-1, -1, -WINDOW_SIZE):
+        #row = imga[i]
+        crow = []
+        for j in range(COLUMN_MARGIN, columns - COLUMN_MARGIN, WINDOW_SIZE):
+            crow.append(imga[i:i+WINDOW_SIZE, j:j+WINDOW_SIZE].sum())
+            
+        crows.append(crow)
+
+    return np.asarray(crows)
+        
 def torso_begin(imga):
     """
         Returns the row and column of input image array where the beginning of the torso is detected
@@ -225,20 +276,33 @@ def create_zones(file=None, slice=0, src_dir='data'):
     img = scipy.misc.toimage(img, channel_axis=2)
     imga = np.asarray(img)
     
+    crows = torso_test(imga)
+    
     rows, columns = imga.shape
-    
-    torso_begin_row, torso_begin_column = torso_begin(imga)
-    
-    torso_end_row = torso_end(imga, (torso_begin_row, torso_begin_column))
-    
+#     
+#     torso_begin_row, torso_begin_column = torso_begin(imga)
+#     
+#     torso_end_row = torso_end(imga, (torso_begin_row, torso_begin_column))
+#     
     draw = ImageDraw.Draw(img)
-    draw.line([(0, torso_begin_row), (columns-1, torso_begin_row)], fill='white')
-    draw.line([(0, torso_end_row), (columns-1, torso_end_row)], fill='white')
+    for i in range(crows.shape[0]):
+        draw.text((2, rows - (i * 10) - 10), str(i), fill='white')            
+
+#     draw.line([(0, torso_begin_row), (columns-1, torso_begin_row)], fill='white')
+#     draw.line([(0, torso_end_row), (columns-1, torso_end_row)], fill='white')
     del draw
+#     
+    img.save('aaatestfile.png')
+#     
+#     print("torso_begin_row: %s" % str(torso_begin_row))
+#     print("torso_begin_column: %s" % str(torso_begin_column))
+#     print("torso_end_row: %s" % str(torso_end_row))
+#     return imga
+    return crows
+
+import matplotlib.pyplot as plt
+
+def p(row):
+    plt.plot(range(row.size), row)
+    plt.show()
     
-    img.save('aatestfile.png')
-    
-    print("torso_begin_row: %s" % str(torso_begin_row))
-    print("torso_begin_column: %s" % str(torso_begin_column))
-    print("torso_end_row: %s" % str(torso_end_row))
-    return imga

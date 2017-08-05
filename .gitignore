@@ -5,3 +5,5 @@ pscreening/data
 */__pycache__
 **/*.png
 **/*.npy
+.project
+.pydevproject
