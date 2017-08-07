@@ -162,21 +162,23 @@ def label_dict(label_file):
 COLUMN_MARGIN = 30 # Amount of pixels out to start looking at columns (avoiding uninteresting space on the side margins)
     
 PIXEL_THRESHOLD = 25 # Pixel intensity value threshold to be considered 'interesting'
-TORSO_WINDOW = 150 # Pixel width used to detect torso
-TORSO_MIN = 140 # Number of pixels in torso window that must pass threshold to be considered part of torso
 TORSO_MARGIN = 100 # Once torso is found, the margin of columns used to see if we're still in the torso
 
 WINDOW_SIZE = 10
 
-PEAK_SLOPE_THRESHOLD = 4000
+PEAK_SLOPE_THRESHOLD = 0.25
+
+TORSO_PEAK_COUNT = 1
+HEAD_PEAK_COUNT = 3
+
+from sklearn import preprocessing
 
 def peaks(row, slope_threshold=PEAK_SLOPE_THRESHOLD):
     """
         Returns the number of peaks detected in a row of data
     """
-    row = [-1, 0, 1, -2, 3, 13, 13, 40, 26, 54, 68, -10, 85, 200, 2953, 3873, 3954, -2535, -5945, 2494, 1885, 3075, -982, -2812, -837, 5942, -724, -3394, -5476, -1588, -41, -108, -62, -10, -53, -14, -54, -11, 2, -13, -2, -6, 15, 11, 0]
-    
-    slopes = np.asarray(row, dtype=np.int64)
+    #slopes = np.asarray(row, dtype=np.int64)
+    slopes = preprocessing.normalize([row], norm='l2')[0]
     slopes = [(data[1]-data[0]) for data in zip(slopes[:], slopes[1:])]
     
     peak_count = 0
@@ -192,16 +194,16 @@ def peaks(row, slope_threshold=PEAK_SLOPE_THRESHOLD):
                 peak_count += 1            
                 peak_sum = 0
                 peak_hit = False
+                peak_top = 0
         
         if peak_sum > slope_threshold:
             peak_hit = True
-            peak_top = peak_sum            
+            if peak_sum > peak_top:
+                peak_top = peak_sum            
 
     return peak_count
 
-peaks()
-
-def torso_test(imga):
+def convoluted_rows(imga):
     rows, columns = imga.shape
     
     crows = []
@@ -216,41 +218,35 @@ def torso_test(imga):
 
     return np.asarray(crows)
         
-def torso_begin(imga):
+def torso_begin(crows):
     """
-        Returns the row and column of input image array where the beginning of the torso is detected
-    """    
+        Returns the row of input convoluted rows where the beginning of the torso is detected
+    """
+    PEAK_THRESHOLD = 3
     
-    rows, columns = imga.shape
-    
-    torso_begin_row = None
-    torso_begin_column = None
-    for i in range(rows-1, -1, -1):
-        row = imga[i]
-        for j in range(COLUMN_MARGIN, columns - COLUMN_MARGIN):
-            if torso_begin_row is None:
-                if (row[j:j+TORSO_WINDOW] > PIXEL_THRESHOLD).sum() >= TORSO_MIN:
-                    torso_begin_row = i
-                    torso_begin_column = j
-                    
-            if torso_begin_row is not None:
-                break
-            
-        if torso_begin_row is not None:
-            break
+    rows, columns = crows.shape
+        
+    peak_count = 0
+    peak_start = 0
+    for i in range(10, rows):   # TODO: make start a constant or argument
+        row = crows[i]
+        if peaks(row) == TORSO_PEAK_COUNT:
+            if peak_count == 0:
+                peak_start = i
+            peak_count +=1
+        else:
+            peak_count = max(0, peak_count - 1)            
+        
+        if peak_count == PEAK_THRESHOLD:
+            return peak_start - 1
 
-    return torso_begin_row, torso_begin_column
-
-def torso_end(imga, begin_point):
+def head_begin(crows, begin_crow):
     """
-        Returns the row of input image array where the end of the torso is detected. Starts looking
-        at the begin_point tuple
+        Returns the row of input convoluted rows head is detected. Starts looking at the begin_row
     """
-    torso_begin_row, torso_begin_column = begin_point
-    
     torso_end_row = None
-    for i in range(torso_begin_row-1, -1, -1):  #TODO: can probably start on an arbitrarily higher row
-        row = imga[i]
+    for i in range(begin_crow):  #TODO: can probably start on an arbitrarily higher row
+        row = crows[i]
         
         j = torso_begin_column
         while (j < torso_begin_column + TORSO_MARGIN):
@@ -276,11 +272,12 @@ def create_zones(file=None, slice=0, src_dir='data'):
     img = scipy.misc.toimage(img, channel_axis=2)
     imga = np.asarray(img)
     
-    crows = torso_test(imga)
+    crows = convoluted_rows(imga)
     
     rows, columns = imga.shape
-#     
-#     torso_begin_row, torso_begin_column = torso_begin(imga)
+     
+    torso_begin_crow = torso_begin(crows)  
+    torso_begin_row = rows - torso_begin_crow * WINDOW_SIZE 
 #     
 #     torso_end_row = torso_end(imga, (torso_begin_row, torso_begin_column))
 #     
@@ -288,7 +285,7 @@ def create_zones(file=None, slice=0, src_dir='data'):
     for i in range(crows.shape[0]):
         draw.text((2, rows - (i * 10) - 10), str(i), fill='white')            
 
-#     draw.line([(0, torso_begin_row), (columns-1, torso_begin_row)], fill='white')
+    draw.line([(0, torso_begin_row), (columns-1, torso_begin_row)], fill='white')
 #     draw.line([(0, torso_end_row), (columns-1, torso_end_row)], fill='white')
     del draw
 #     
@@ -298,7 +295,7 @@ def create_zones(file=None, slice=0, src_dir='data'):
 #     print("torso_begin_column: %s" % str(torso_begin_column))
 #     print("torso_end_row: %s" % str(torso_end_row))
 #     return imga
-    return crows
+    return imga, crows
 
 import matplotlib.pyplot as plt
 
@@ -306,3 +303,5 @@ def p(row):
     plt.plot(range(row.size), row)
     plt.show()
     
+r = create_zones(file='data/402bcaa39d6e36a90bf314207b110fa7.aps')
+#peaks(r[40])
