@@ -7,3 +7,4 @@ pscreening/data
 **/*.npy
 .project
 .pydevproject
+.settings
