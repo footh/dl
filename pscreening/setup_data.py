@@ -165,7 +165,7 @@ PIXEL_THRESHOLD = 25 # Pixel intensity value threshold to be considered 'interes
 
 WINDOW_SIZE = 10
 
-PEAK_SLOPE_THRESHOLD = 0.1
+PEAK_SLOPE_THRESHOLD = 0.15
 
 from sklearn import preprocessing
 from scipy import signal
@@ -235,6 +235,31 @@ def convoluted_rows(imga):
         crows.append(crow)
 
     return np.asarray(crows)
+
+def image_bounding_columns(crow):
+    """
+        Returns the columns of convoluted row where start and end of image is detected
+        TODO: make this better
+    """
+    #print(crow)
+    HIT_THRESHOLD = 3
+    HIST_BINS = 15
+    HIST_BIN_THRESHOLD = 4
+    count, bins = np.histogram(crow, bins=HIST_BINS)
+    threshold = bins[HIST_BIN_THRESHOLD]
+    
+    image_start = 0
+    for i in range(crow.size):
+        if np.sum(crow[i:i+HIT_THRESHOLD] > threshold) == HIT_THRESHOLD:
+            image_start = i
+            break
+    
+    image_end = 0
+    for i in range(crow.size-1, -1, -1):
+        if np.sum(crow[i-HIT_THRESHOLD:i] > threshold) == HIT_THRESHOLD:
+            image_end = i
+            break
+    return image_start, image_end
  
 def find_peak_start(crows, num_peaks, hit_threshold=3):
     """
@@ -243,7 +268,7 @@ def find_peak_start(crows, num_peaks, hit_threshold=3):
         TODO: better logic around hit_threshold, keep it small for now which will do n out of n+1 
     """
     rows, columns = crows.shape
-        
+
     peak_hits = 0
     peak_start_row = 0
     peak_start_column = 0
@@ -260,25 +285,28 @@ def find_peak_start(crows, num_peaks, hit_threshold=3):
         
         if peak_hits == hit_threshold:
             return peak_start_row, peak_start_column
+        
+    return rows - 1, columns - 1
     
 def torso_begin(crows):
     """
         Returns the row of input convoluted rows where the beginning of the torso is detected
+        and the columns where the image starts and ends
     """
     PEAK_HIT_THRESHOLD = 3
     TORSO_PEAK_COUNT = 1
-    
     torso_start_row, torso_start_column = find_peak_start(crows,
                                                           TORSO_PEAK_COUNT,
                                                           hit_threshold=PEAK_HIT_THRESHOLD)
     
-    # TODO: more thought around adjustments here
-    torso_start_row -= 3
-    torso_start_column -= 3
-        
-    return torso_start_row, torso_start_column
 
-def head_begin(crows):
+    torso_start_row -= 3
+    #print(torso_start_column)
+    #print(crows[torso_start_row][0:torso_start_column])
+    image_start, image_end = image_bounding_columns(crows[torso_start_row])
+    return torso_start_row, image_start, image_end
+
+def head_begin(crows, torso_start_column):
     """
         Returns the row of input convoluted rows head is detected. Starts looking at the begin_row
     """
@@ -289,12 +317,15 @@ def head_begin(crows):
                                                         HEAD_PEAK_COUNT,
                                                         hit_threshold=PEAK_HIT_THRESHOLD)
     
-    # Add back margin
-    head_start_row
-    
-    # TODO: more thought around adjustments here
-    head_start_row += 1
-        
+    # Hack: looking at the intensity straight up (and a little right) from the found row and setting to 
+    #the first dark area (which should be the in the gap between arms and shoulder) 
+    LOOK_UP_NUM = 7
+    RIGHT_ADJUSTMENT = 3
+    for i in range(LOOK_UP_NUM):
+        if crows[head_start_row + i][torso_start_column + RIGHT_ADJUSTMENT] < 1000:
+            head_start_row = head_start_row + i
+            break;
+
     return head_start_row, head_start_column
     
 def create_zones(file=None, slice=0, src_dir='data'):
@@ -316,25 +347,43 @@ def create_zones(file=None, slice=0, src_dir='data'):
     TORSO_MARGIN = 10
     HEAD_MARGIN = 10
      
-    torso_begin_crow, torso_begin_column = torso_begin(crows[TORSO_MARGIN:])
-    torso_begin_row = rows - (torso_begin_crow + TORSO_MARGIN) * WINDOW_SIZE
-     
-    head_begin_crow, head_begin_column = head_begin(crows[torso_begin_crow + HEAD_MARGIN:])
+    torso_begin_crow, torso_begin_ccolumn, torso_end_ccolumn = torso_begin(crows[TORSO_MARGIN:])
+    torso_begin_crow += TORSO_MARGIN # Add back the margin to get value from the beginning
+    torso_begin_row = rows - (torso_begin_crow * WINDOW_SIZE)
+    torso_begin_column = torso_begin_ccolumn * WINDOW_SIZE + COLUMN_MARGIN
+    torso_end_column = torso_end_ccolumn * WINDOW_SIZE + COLUMN_MARGIN
+    
+    print(torso_begin_crow) 
+    head_begin_crow, head_begin_column = head_begin(crows[torso_begin_crow + HEAD_MARGIN:], torso_begin_ccolumn)
+    print(head_begin_crow)
     head_begin_row = rows - (head_begin_crow + torso_begin_crow + HEAD_MARGIN) * WINDOW_SIZE
-     
+
+    torso_size = head_begin_row - torso_begin_row
+    torso_unit = torso_size // 15
+    zone_5_endrow = head_begin_row - 4 * torso_unit
+    zone_67_endrow = head_begin_row - 12 * torso_unit
+    zone_67_column = (torso_end_column - torso_begin_column) // 2 + torso_begin_column
+
     draw = ImageDraw.Draw(img)
+    # drawing crow numbers
     for i in range(crows.shape[0]):
         draw.text((2, rows - (i * 10) - 10), str(i), fill='white')            
 
-    draw.line([(0, torso_begin_row), (columns-1, torso_begin_row)], fill='white')
+    #draw.line([(0, torso_begin_row), (columns-1, torso_begin_row)], fill='white')
     draw.line([(0, head_begin_row), (columns-1, head_begin_row)], fill='white')
+    draw.line([(torso_begin_column, torso_begin_row), (torso_begin_column, head_begin_row)], fill='white')
+    draw.line([(torso_end_column, torso_begin_row), (torso_end_column, head_begin_row)], fill='white')
+    
+    #zone 5 bottom
+    draw.line([(torso_begin_column, zone_5_endrow), (torso_end_column, zone_5_endrow)], fill='white')
+    #zone 6/7 split
+    draw.line([(zone_67_column, zone_5_endrow), (zone_67_column, zone_67_endrow)], fill='white')
+    #zone 6/7 end
+    draw.line([(torso_begin_column, zone_67_endrow), (torso_end_column, zone_67_endrow)], fill='white')
+    
     del draw
-#     
+         
     img.save('aaatestfile.png')
-#     
-#     print("torso_begin_column: %s" % str(torso_begin_column))
-#     print("torso_end_row: %s" % str(torso_end_row))
-#     return imga
     return imga, crows
 
 #-------------------------------------------------------------------------
@@ -353,7 +402,7 @@ def psm(crows, start, count=4):
     for i in range(start, start + count):
         fr = smooth_curve(crows[i])
         plt.plot(range(fr.size), fr, clrs[i-start])
-        p.append(peaks2(fr))
+        p.append(peaks2(crows[i]))
         
     plt.show()
     return p
@@ -367,5 +416,5 @@ def pr(crows, start, count=4):
     plt.show()
     return p    
     
-r = create_zones(file='data/402bcaa39d6e36a90bf314207b110fa7.aps')
+#r = create_zones(file='data/402bcaa39d6e36a90bf314207b110fa7.aps')
 #peaks(r[40])
