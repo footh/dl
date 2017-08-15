@@ -2,6 +2,10 @@
 *.csv
 galaxy/images_training_rev1
 pscreening/data
+pscreening/submission
+pscreening/train
+pscreening/valid
+pscreening/test
 */__pycache__
 **/*.png
 **/*.npy

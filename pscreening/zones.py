@@ -1,8 +1,9 @@
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import scipy.misc
-from setup_data import shuffled_files
+from setup_data import shuffled_files, label_dict
 import util
+import os
 
 COLUMN_MARGIN = 30 # Amount of pixels out to start looking at columns (avoiding uninteresting space on the side margins)
     
@@ -233,7 +234,7 @@ def head_begin(crows, torso_start_column, torso_end_column):
     
     return head_start_row, head_start_column        
     
-def create_zones(file=None, slice=0, src_dir='data'):
+def create_zones(file=None, slice=0, src_dir='train', save_file='zone_test'):
 
     # Read first file from shuffled list
     if file is None:
@@ -247,50 +248,49 @@ def create_zones(file=None, slice=0, src_dir='data'):
     
     crows = convoluted_rows(imga)
     
-    rows, columns = imga.shape
-
-    TORSO_MARGIN = 10
-    HEAD_MARGIN = 10
-     
-    torso_begin_crow, torso_begin_ccolumn, torso_end_ccolumn = torso_begin(crows[TORSO_MARGIN:])
-    torso_begin_crow += TORSO_MARGIN # Add back the margin to get value from the beginning
-    torso_begin_row = rows - (torso_begin_crow * WINDOW_SIZE)
-    torso_begin_column = torso_begin_ccolumn * WINDOW_SIZE + COLUMN_MARGIN
-    torso_end_column = torso_end_ccolumn * WINDOW_SIZE + COLUMN_MARGIN
+    if slice == 0: 
+        rows, columns = imga.shape
     
-    print(torso_begin_crow) 
-    head_begin_crow, head_begin_column = head_begin(crows[torso_begin_crow + HEAD_MARGIN:], torso_begin_ccolumn, torso_end_ccolumn)
-    #head_begin_crow, head_begin_column = head_begin2(crows[torso_begin_crow:], torso_begin_ccolumn, torso_end_ccolumn)    
-    print(head_begin_crow)
-    head_begin_row = rows - (head_begin_crow + torso_begin_crow + HEAD_MARGIN) * WINDOW_SIZE
-    #head_begin_row = rows - (head_begin_crow + torso_begin_crow) * WINDOW_SIZE
-
-    torso_size = head_begin_row - torso_begin_row
-    torso_unit = torso_size // 15
-    zone_5_endrow = head_begin_row - 4 * torso_unit
-    zone_67_endrow = head_begin_row - 11 * torso_unit
-    zone_67_column = (torso_end_column - torso_begin_column) // 2 + torso_begin_column
-
-    draw = ImageDraw.Draw(img)
-    # drawing crow numbers
-    for i in range(crows.shape[0]):
-        draw.text((2, rows - (i * 10) - 10), str(i), fill='white')            
-
-    #draw.line([(0, torso_begin_row), (columns-1, torso_begin_row)], fill='white')
-    draw.line([(0, head_begin_row), (columns-1, head_begin_row)], fill='white')
-    draw.line([(torso_begin_column, torso_begin_row), (torso_begin_column, head_begin_row)], fill='white')
-    draw.line([(torso_end_column, torso_begin_row), (torso_end_column, head_begin_row)], fill='white')
-    
-    #zone 5 bottom
-    draw.line([(torso_begin_column, zone_5_endrow), (torso_end_column, zone_5_endrow)], fill='white')
-    #zone 6/7 split
-    draw.line([(zone_67_column, zone_5_endrow), (zone_67_column, zone_67_endrow)], fill='white')
-    #zone 6/7 end
-    draw.line([(torso_begin_column, zone_67_endrow), (torso_end_column, zone_67_endrow)], fill='white')
-    
-    del draw
+        TORSO_MARGIN = 10
+        HEAD_MARGIN = 10
          
-    img.save('aaatestfile.png')
+        torso_begin_crow, torso_begin_ccolumn, torso_end_ccolumn = torso_begin(crows[TORSO_MARGIN:])
+        torso_begin_crow += TORSO_MARGIN # Add back the margin to get value from the beginning
+        torso_begin_row = rows - (torso_begin_crow * WINDOW_SIZE)
+        torso_begin_column = torso_begin_ccolumn * WINDOW_SIZE + COLUMN_MARGIN
+        torso_end_column = torso_end_ccolumn * WINDOW_SIZE + COLUMN_MARGIN
+        
+        print(torso_begin_crow) 
+        head_begin_crow, head_begin_column = head_begin(crows[torso_begin_crow + HEAD_MARGIN:], torso_begin_ccolumn, torso_end_ccolumn)
+        print(head_begin_crow)
+        head_begin_row = rows - (head_begin_crow + torso_begin_crow + HEAD_MARGIN) * WINDOW_SIZE
+    
+        torso_size = head_begin_row - torso_begin_row
+        torso_unit = torso_size // 15
+        zone_5_endrow = head_begin_row - 4 * torso_unit
+        zone_67_endrow = head_begin_row - 11 * torso_unit
+        zone_67_column = (torso_end_column - torso_begin_column) // 2 + torso_begin_column
+    
+        draw = ImageDraw.Draw(img)
+        # drawing crow numbers
+        for i in range(crows.shape[0]):
+            draw.text((2, rows - (i * 10) - 10), str(i), fill='white')            
+    
+        #draw.line([(0, torso_begin_row), (columns-1, torso_begin_row)], fill='white')
+        draw.line([(0, head_begin_row), (columns-1, head_begin_row)], fill='white')
+        draw.line([(torso_begin_column, torso_begin_row), (torso_begin_column, head_begin_row)], fill='white')
+        draw.line([(torso_end_column, torso_begin_row), (torso_end_column, head_begin_row)], fill='white')
+        
+        #zone 5 bottom
+        draw.line([(torso_begin_column, zone_5_endrow), (torso_end_column, zone_5_endrow)], fill='white')
+        #zone 6/7 split
+        draw.line([(zone_67_column, zone_5_endrow), (zone_67_column, zone_67_endrow)], fill='white')
+        #zone 6/7 end
+        draw.line([(torso_begin_column, zone_67_endrow), (torso_end_column, zone_67_endrow)], fill='white')
+        
+        del draw
+        
+    img.save(os.path.join('zones', save_file + str(slice) + '.png'))
     return imga, crows
 
 #-------------------------------------------------------------------------

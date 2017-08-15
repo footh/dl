@@ -5,6 +5,7 @@ from PIL import Image, ImageDraw, ImageFont
 import scipy.misc
 import util
 import csv
+import math
 
 def remove_files(src):
     if os.path.isfile(src):
@@ -13,15 +14,9 @@ def remove_files(src):
         # map lazy evaluates so must wrap in list to force evaluation
         list(map(remove_files, [os.path.join(src, fi) for fi in os.listdir(src)]))
         
-def copy_files(files, src_dir, dest_dir, transform=False):
+def copy_files(files, src_dir, dest_dir, ext='aps'):
     for f in files:
-        if transform:
-            imga = np.array(Image.open(os.path.join(src_dir, f)))
-            imga = imga[100:-100, 100:-100, :]
-            img = Image.fromarray(imga)
-            img.save(os.path.join(dest_dir, f))
-        else:
-            shutil.copy2(os.path.join(src_dir, f), dest_dir)
+        shutil.copy2(os.path.join(src_dir, f + '.' + ext), dest_dir)
 
 def shuffled_files(src_dir):
     """
@@ -133,14 +128,14 @@ def generate_image_slices_zones(zone_file='zones.csv', src_dir='data', dest_dir=
         #scipy.misc.imsave(os.path.join('scratch', str(i) + 'z.png'), np.asarray(img))
         img.save(os.path.join(dest_dir, str(i) + 'z.png'))
     
-def label_dict(label_file):
+def label_dict(label_file='stage1_labels.csv'):
     """
         Reads the label file and returns a dict of {id: [array of 0s and 1s]}. Index of label is (zone - 1).
     """    
     with open(label_file, newline='') as csvfile:
         label_reader = csv.reader(csvfile)
         headers = next(label_reader) #skip header row
-        print(headers)
+        #print(headers)
 
         label_dict = {}
         cur_id = ''
@@ -155,3 +150,56 @@ def label_dict(label_file):
             cur_id = id
             
         return label_dict
+    
+def setup_data(src_dir, label_file, numValid=None, numTest=None, ext='aps'):
+    """
+        Moves the unlabeled files to submission dir, and the rest to train, valid and test directories
+        Usage: setup_data('data','stage1_labels.csv', numValid=100, numTest=100)
+    """    
+
+    print('Clearing train directory...')
+    remove_files('train')
+    print('Clearing valid directory...')
+    remove_files('valid')
+    print('Clearing test directory...')
+    remove_files('test')
+    print('Clearing submission directory...')
+    remove_files('submission')
+    
+    src_files = os.listdir(src_dir)
+    src_files = [f.split('.')[0] for f in src_files]
+    total_files = len(src_files)
+    print('Found %s files' % total_files)
+    
+    labels = label_dict(label_file)
+    label_keys = list(labels.keys())
+    labeled_count = len(label_keys)
+    print('Found %s labeled files' % labeled_count)    
+    
+    # files not labeled are submission data
+    submission_keys = list(set(src_files) - set(label_keys))
+    print('Copying %s submission files' % len(submission_keys))
+    copy_files(submission_keys, src_dir, 'submission', ext=ext)    
+    
+    # shuffle the rest
+    shuffled_files = np.random.permutation(label_keys)
+    
+    # Max of 20% of total is allowed for valid and test sets
+    max_non_training = math.floor(labeled_count * 0.20)
+    valid_count = max_non_training
+    if numValid is not None:
+        valid_count = min(max_non_training, numValid)
+ 
+    test_count = max_non_training
+    if numTest is not None:
+        test_count = min(max_non_training, numTest)
+         
+    print('Copying %s validation files' % valid_count)
+    copy_files(label_keys[:valid_count], src_dir, 'valid', ext=ext)
+     
+    print('Copying %s test files' % test_count)
+    copy_files(label_keys[valid_count:(valid_count + test_count)], src_dir, 'test', ext=ext)
+     
+    print('Copying %s training files' % (labeled_count - (valid_count + test_count)))
+    copy_files(label_keys[(valid_count + test_count):], src_dir, 'train', ext=ext)
+
