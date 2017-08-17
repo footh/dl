@@ -1,25 +1,20 @@
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
-import scipy.misc
+from scipy import misc, signal
 from setup_data import shuffled_files, label_dict
 import util
 import os
+import peakutils
 
 COLUMN_MARGIN = 30 # Amount of pixels out to start looking at columns (avoiding uninteresting space on the side margins)
     
-PIXEL_THRESHOLD = 25 # Pixel intensity value threshold to be considered 'interesting'
-
-WINDOW_SIZE = 10
+WINDOW_SIZE = 10 # Size in pixels of original image to convolute the image to. Ex. 500x600 would go to 50x60
 
 PEAK_SLOPE_THRESHOLD = 0.15
 
 # Curve smoothing parameters
 F_WINDOW_LENGTH = 9
 F_POLY_ORDER = 3
-
-from sklearn import preprocessing
-from scipy import signal
-import peakutils
 
 def smooth_curve(row, win_len=F_WINDOW_LENGTH, order=F_POLY_ORDER):
     """
@@ -64,6 +59,7 @@ def peaks(row, slope_threshold=0.3): # 0.3 was the original amount
         Returns the number of peaks detected in a row of data
     """
     #slopes = np.asarray(row, dtype=np.int64)
+    from sklearn import preprocessing
     slopes = preprocessing.normalize([row], norm='l2')[0]
     slopes = [(data[1]-data[0]) for data in zip(slopes[:], slopes[1:])]
     
@@ -232,8 +228,33 @@ def head_begin(crows, torso_start_column, torso_end_column):
 
     print(f"---------------head start row (2): {head_start_row}")
     
-    return head_start_row, head_start_column        
+    return head_start_row, head_start_column
+
+def critical_points(imga):
+    """
+        Takes the image array and returns the critical points needed to create zones:
+        torso begin row and columns, head begin row, TODO: image end row
+    """    
+    crows = convoluted_rows(imga)
     
+    rows, columns = imga.shape
+
+    TORSO_MARGIN = 10
+    HEAD_MARGIN = 10
+     
+    torso_begin_crow, torso_begin_ccolumn, torso_end_ccolumn = torso_begin(crows[TORSO_MARGIN:])
+    torso_begin_crow += TORSO_MARGIN # Add back the margin to get value from the beginning
+    torso_begin_row = rows - (torso_begin_crow * WINDOW_SIZE)
+    torso_begin_column = torso_begin_ccolumn * WINDOW_SIZE + COLUMN_MARGIN
+    torso_end_column = torso_end_ccolumn * WINDOW_SIZE + COLUMN_MARGIN
+    
+    print(torso_begin_crow) 
+    head_begin_crow, head_begin_column = head_begin(crows[torso_begin_crow + HEAD_MARGIN:], torso_begin_ccolumn, torso_end_ccolumn)
+    print(head_begin_crow)
+    head_begin_row = rows - (head_begin_crow + torso_begin_crow + HEAD_MARGIN) * WINDOW_SIZE
+    
+    return torso_begin_row, torso_begin_column, torso_end_column, head_begin_row, crows # TODO: add image end row (where hands end)    
+
 def create_zones(file=None, slice=0, src_dir='train', save_file='zone_test'):
 
     # Read first file from shuffled list
@@ -243,27 +264,13 @@ def create_zones(file=None, slice=0, src_dir='train', save_file='zone_test'):
 
     file_data = util.read_data(file)
     img = np.flipud(file_data[:,:,slice].transpose())
-    img = scipy.misc.toimage(img, channel_axis=2)
+    img = misc.toimage(img, channel_axis=2)
     imga = np.asarray(img)
     
-    crows = convoluted_rows(imga)
+    torso_begin_row, torso_begin_column, torso_end_column, head_begin_row, crows = critical_points(imga)
     
     if slice == 0: 
         rows, columns = imga.shape
-    
-        TORSO_MARGIN = 10
-        HEAD_MARGIN = 10
-         
-        torso_begin_crow, torso_begin_ccolumn, torso_end_ccolumn = torso_begin(crows[TORSO_MARGIN:])
-        torso_begin_crow += TORSO_MARGIN # Add back the margin to get value from the beginning
-        torso_begin_row = rows - (torso_begin_crow * WINDOW_SIZE)
-        torso_begin_column = torso_begin_ccolumn * WINDOW_SIZE + COLUMN_MARGIN
-        torso_end_column = torso_end_ccolumn * WINDOW_SIZE + COLUMN_MARGIN
-        
-        print(torso_begin_crow) 
-        head_begin_crow, head_begin_column = head_begin(crows[torso_begin_crow + HEAD_MARGIN:], torso_begin_ccolumn, torso_end_ccolumn)
-        print(head_begin_crow)
-        head_begin_row = rows - (head_begin_crow + torso_begin_crow + HEAD_MARGIN) * WINDOW_SIZE
     
         torso_size = head_begin_row - torso_begin_row
         torso_unit = torso_size // 15
@@ -290,7 +297,9 @@ def create_zones(file=None, slice=0, src_dir='train', save_file='zone_test'):
         
         del draw
         
-    img.save(os.path.join('zones', save_file + str(slice) + '.png'))
+    if save_file is not None:
+        img.save(os.path.join('zones', save_file + str(slice) + '.png'))
+        
     return imga, crows
 
 #-------------------------------------------------------------------------
@@ -321,7 +330,33 @@ def pr(crows, start, count=4):
         p.append(peaks(crows[i]))
         
     plt.show()
-    return p    
+    return p
+
+def points_file(src_dir='train'):
+    import csv
+    files = shuffled_files(src_dir)
+    with open('points.csv', 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile, delimiter=',')
+        for f in files:
+            file_data = util.read_data(f)
+            img = np.flipud(file_data[:,:,0].transpose())
+            img = misc.toimage(img, channel_axis=2)
+            imga = np.asarray(img)
+            tbr, tbc, tec, hbr, _ = critical_points(imga)
+            writer.writerow([f, tbr, tbc, tec, hbr])
+    
+def sst(file, tm=20):
+    import cv2
+    from scipy import stats
+    
+    img = cv2.imread(file)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    img = stats.threshold(img, threshmin=tm, newval=0)
+    # create a CLAHE object (Arguments are optional).
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    cl1 = clahe.apply(img)
+     
+    cv2.imwrite('zones/clahe_2.png',cl1)    
     
 #r = create_zones(file='data/402bcaa39d6e36a90bf314207b110fa7.aps')
 #peaks(r[40])
