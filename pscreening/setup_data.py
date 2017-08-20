@@ -37,11 +37,11 @@ def generate_combined(src_dir, num=100, method='max'):
         of files used in the combination.
     """
     
-    shuffled_files = shuffled_files(src_dir)
+    files = shuffled_files(src_dir)
     
-    sample = util.read_data(shuffled_files[0])
+    sample = util.read_data(files[0])
     combined = np.zeros(sample.shape) + sample
-    for file in shuffled_files[1:num]:
+    for file in files[1:num]:
         if method == 'avg':
             combined = combined + util.read_data(file)
         else:

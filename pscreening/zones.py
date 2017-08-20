@@ -85,16 +85,21 @@ def peaks(row, slope_threshold=0.3): # 0.3 was the original amount
 
     return peak_count
 
-def convoluted_rows(imga):
+def convoluted_rows(imga, window_size=WINDOW_SIZE):
+    """
+        Will shrink image dimensions by a factor of 'window_size' by summing all pixel 
+        values in window_size X window_size square. Also reverses the rows (starts from bottom)
+    """
+        
     rows, columns = imga.shape
     
     crows = []
     idx = []
-    for i in range(rows-1, -1, -WINDOW_SIZE):
+    for i in range(rows-1, -1, -window_size):
         #row = imga[i]
         crow = []
-        for j in range(COLUMN_MARGIN, columns - COLUMN_MARGIN, WINDOW_SIZE):
-            crow.append(imga[i:i+WINDOW_SIZE, j:j+WINDOW_SIZE].sum())
+        for j in range(0, columns, window_size):
+            crow.append(imga[i:i+window_size, j:j+window_size].sum())
             
         crows.append(crow)
 
@@ -165,13 +170,11 @@ def torso_begin(crows):
                                                           peak_func,
                                                           hit_threshold=PEAK_HIT_THRESHOLD)
     
-    torso_start_row -= 3
-    #print(torso_start_column)
-    #print(crows[torso_start_row][0:torso_start_column])
-    image_start, image_end = image_bounding_columns(crows[torso_start_row])
-    return torso_start_row, image_start, image_end
+    torso_start_row -= 3 # TODO: better adjustment?
 
-def head_begin(crows, torso_start_column, torso_end_column):
+    return torso_start_row, torso_start_column
+
+def head_begin(crows, torso_begin_column, torso_end_column):
     """
         Returns the row of input convoluted rows head is detected. Starts looking at the begin_row
     """
@@ -179,12 +182,12 @@ def head_begin(crows, torso_start_column, torso_end_column):
     HEAD_PEAK_COUNT = 3
     peak_func = lambda cur_peaks: cur_peaks >= HEAD_PEAK_COUNT
     
-    head_start_row, head_start_column = find_peak_start(crows,
+    head_begin_row, head_begin_column = find_peak_start(crows,
                                                         peak_func,
                                                         hit_threshold=PEAK_HIT_THRESHOLD)
     
-    print(f"---------------head start row (1): {head_start_row}")
-    print(f"torso start/end: {(torso_start_column, torso_end_column)}")
+    print(f"---------------head start row (1): {head_begin_row}")
+    print(f"torso start/end: {(torso_begin_column, torso_end_column)}")
     
     LOOK_UP_NUM = 6 
     HIST_BINS = 8
@@ -192,7 +195,7 @@ def head_begin(crows, torso_start_column, torso_end_column):
     
     rows, columns = crows.shape
     
-    examined_space = crows[head_start_row:head_start_row+LOOK_UP_NUM, torso_start_column:torso_end_column]
+    examined_space = crows[head_begin_row:head_begin_row+LOOK_UP_NUM, torso_begin_column:torso_end_column]
     #count, bins = np.histogram(examined_space, bins=HIST_BINS)
     #print((count, bins))
     
@@ -223,39 +226,44 @@ def head_begin(crows, torso_start_column, torso_end_column):
             low_intensity_start = 0
             
         if low_intensity_hits == HIT_THRESHOLD:
-            head_start_row += low_intensity_start
+            head_begin_row += low_intensity_start
             break
 
-    print(f"---------------head start row (2): {head_start_row}")
+    print(f"---------------head start row (2): {head_begin_row}")
     
-    return head_start_row, head_start_column
+    return head_begin_row, head_begin_column
 
-def critical_points(imga):
+def torso_bounding_columns(crows):
+    begin_column = 9999
+    end_column = 0
+    for i in range(crows.shape[0]):
+        image_begin, image_end = image_bounding_columns(crows[i])
+        begin_column = min(image_begin, begin_column)
+        end_column = max(image_end, end_column)
+        
+    return begin_column, end_column
+
+def critical_points(crows):
     """
         Takes the image array and returns the critical points needed to create zones:
         torso begin row and columns, head begin row, TODO: image end row
-    """    
-    crows = convoluted_rows(imga)
-    
-    rows, columns = imga.shape
-
+    """
     TORSO_MARGIN = 10
     HEAD_MARGIN = 10
      
-    torso_begin_crow, torso_begin_ccolumn, torso_end_ccolumn = torso_begin(crows[TORSO_MARGIN:])
+    torso_begin_crow, _ = torso_begin(crows[TORSO_MARGIN:])
     torso_begin_crow += TORSO_MARGIN # Add back the margin to get value from the beginning
-    torso_begin_row = rows - (torso_begin_crow * WINDOW_SIZE)
-    torso_begin_column = torso_begin_ccolumn * WINDOW_SIZE + COLUMN_MARGIN
-    torso_end_column = torso_end_ccolumn * WINDOW_SIZE + COLUMN_MARGIN
+  
+    torso_begin_ccolumn, torso_end_ccolumn = image_bounding_columns(crows[torso_begin_crow])
     
     print(torso_begin_crow) 
-    head_begin_crow, head_begin_column = head_begin(crows[torso_begin_crow + HEAD_MARGIN:], torso_begin_ccolumn, torso_end_ccolumn)
+    head_begin_crow, _ = head_begin(crows[torso_begin_crow + HEAD_MARGIN:], torso_begin_ccolumn, torso_end_ccolumn)
+    head_begin_crow += (torso_begin_crow + HEAD_MARGIN)
     print(head_begin_crow)
-    head_begin_row = rows - (head_begin_crow + torso_begin_crow + HEAD_MARGIN) * WINDOW_SIZE
     
-    return torso_begin_row, torso_begin_column, torso_end_column, head_begin_row, crows # TODO: add image end row (where hands end)    
+    return torso_begin_crow, torso_begin_ccolumn, torso_end_ccolumn, head_begin_crow # TODO: add image end row (where hands end)    
 
-def create_zones(file=None, slice=0, src_dir='train', save_file='zone_test'):
+def create_zones(file=None, slices=[], src_dir='train', save_file='zone_test'):
 
     # Read first file from shuffled list
     if file is None:
@@ -263,30 +271,61 @@ def create_zones(file=None, slice=0, src_dir='train', save_file='zone_test'):
         print(file)
 
     file_data = util.read_data(file)
-    img = np.flipud(file_data[:,:,slice].transpose())
-    img = misc.toimage(img, channel_axis=2)
-    imga = np.asarray(img)
     
-    torso_begin_row, torso_begin_column, torso_end_column, head_begin_row, crows = critical_points(imga)
+    if 0 not in slices:
+        slices.insert(0, 0)
     
-    if slice == 0: 
-        rows, columns = imga.shape
+    slices.sort()
     
-        torso_size = head_begin_row - torso_begin_row
+    crows = None
+    slice0_torso_begin_crow=0    
+    slice0_torso_begin_row = 0
+    slice0_head_begin_crow=0
+    slice0_head_begin_row = 0
+    for slice in slices:
+        # Start with the base slice
+        img = np.flipud(file_data[:,:,slice].transpose())
+        img = misc.toimage(img, channel_axis=2)
+        imga = np.asarray(img)
+        rows, columns = imga.shape        
+    
+        # This remainder will make sure the last convolution has the exact amount of columns for the window size
+        remainder = WINDOW_SIZE - ((columns-2*COLUMN_MARGIN) % WINDOW_SIZE)
+        imga_view = imga[:,COLUMN_MARGIN:columns-COLUMN_MARGIN+remainder]
+        crows = convoluted_rows(imga_view)
+    
+        torso_begin_column = 0
+        torso_end_column = 0
+
+        if slice == 0:
+            slice0_torso_begin_crow, torso_begin_ccolumn, torso_end_ccolumn, slice0_head_begin_crow = critical_points(crows)
+            
+            slice0_torso_begin_row = rows - (slice0_torso_begin_crow * WINDOW_SIZE)
+            torso_begin_column = torso_begin_ccolumn * WINDOW_SIZE + COLUMN_MARGIN
+            torso_end_column = torso_end_ccolumn * WINDOW_SIZE + COLUMN_MARGIN
+            slice0_head_begin_row = rows - (slice0_head_begin_crow * WINDOW_SIZE)        
+            print(f"torso width: {torso_end_column - torso_begin_column}")
+        else:
+            torso_begin_ccolumn, torso_end_ccolumn = torso_bounding_columns(crows[slice0_torso_begin_crow:slice0_head_begin_crow,:])
+            torso_begin_column = torso_begin_ccolumn * WINDOW_SIZE + COLUMN_MARGIN
+            torso_end_column = torso_end_ccolumn * WINDOW_SIZE + COLUMN_MARGIN
+
+        torso_size = slice0_head_begin_row - slice0_torso_begin_row
         torso_unit = torso_size // 15
-        zone_5_endrow = head_begin_row - 4 * torso_unit
-        zone_67_endrow = head_begin_row - 11 * torso_unit
-        zone_67_column = (torso_end_column - torso_begin_column) // 2 + torso_begin_column
-    
+        zone_5_endrow = slice0_head_begin_row - 4 * torso_unit
+        zone_67_endrow = slice0_head_begin_row - 10 * torso_unit
+        torso_width = torso_end_column - torso_begin_column
+        zone_67_column = (torso_width // 2 + torso_begin_column) - int(slice * torso_width * 0.1)
+
         draw = ImageDraw.Draw(img)
         # drawing crow numbers
         for i in range(crows.shape[0]):
             draw.text((2, rows - (i * 10) - 10), str(i), fill='white')            
     
         #draw.line([(0, torso_begin_row), (columns-1, torso_begin_row)], fill='white')
-        draw.line([(0, head_begin_row), (columns-1, head_begin_row)], fill='white')
-        draw.line([(torso_begin_column, torso_begin_row), (torso_begin_column, head_begin_row)], fill='white')
-        draw.line([(torso_end_column, torso_begin_row), (torso_end_column, head_begin_row)], fill='white')
+        draw.line([(0, slice0_head_begin_row), (columns-1, slice0_head_begin_row)], fill='white')
+        draw.line([(torso_begin_column, slice0_torso_begin_row), (torso_begin_column, slice0_head_begin_row)], fill='white')
+        draw.line([(torso_end_column, slice0_torso_begin_row), (torso_end_column, slice0_head_begin_row)], fill='white')
         
         #zone 5 bottom
         draw.line([(torso_begin_column, zone_5_endrow), (torso_end_column, zone_5_endrow)], fill='white')
@@ -297,10 +336,10 @@ def create_zones(file=None, slice=0, src_dir='train', save_file='zone_test'):
         
         del draw
         
-    if save_file is not None:
-        img.save(os.path.join('zones', save_file + str(slice) + '.png'))
+        if save_file is not None:
+            img.save(os.path.join('zones', save_file + str(slice) + '.png'))
         
-    return imga, crows
+    return crows
 
 #-------------------------------------------------------------------------
 # DEBUGGING CODE
