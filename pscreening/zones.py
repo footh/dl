@@ -395,7 +395,7 @@ def sst(file, tm=20):
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
     cl1 = clahe.apply(img)
      
-    cv2.imwrite('zones/clahe_2.png',cl1)    
-    
+    cv2.imwrite('zones/clahe_2.png',cl1)
+        
 #r = create_zones(file='data/402bcaa39d6e36a90bf314207b110fa7.aps')
 #peaks(r[40])
