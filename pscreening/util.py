@@ -1,6 +1,6 @@
 import numpy as np
 import os
-import matplotlib
+import matplotlib.pyplot as plt
 
 def read_header(infile):
     """Read image header (first 512 bytes)
@@ -126,3 +126,17 @@ def read_data(infile):
         return data
     else:
         return real, imag
+    
+def plot_compare(img1, img2, title1='Image1', title2='Image2'):
+    
+    fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(8, 4), sharex=True, sharey=True)
+
+    ax1.imshow(img1, cmap=plt.cm.gray)
+    ax1.set_title(title1)
+    ax1.axis('off')
+    ax1.set_adjustable('box-forced')
+    ax2.imshow(img2, cmap=plt.cm.gray)
+    ax2.set_title(title2)
+    ax2.axis('off')
+    ax2.set_adjustable('box-forced')
+    plt.show()
