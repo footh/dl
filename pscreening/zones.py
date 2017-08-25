@@ -7,10 +7,12 @@ import util
 from setup_data import shuffled_files, label_dict
 from PIL import Image, ImageDraw, ImageFont
 import os
+from collections import OrderedDict
+from _collections import OrderedDict
 
 _DEBUG_ = True
 
-GAUSSIAN_FILTER_SIGMA = 3
+GAUSSIAN_FILTER_SIGMA = 4
 
 def gaussian_filter(img, sigma=GAUSSIAN_FILTER_SIGMA):
     """
@@ -19,15 +21,10 @@ def gaussian_filter(img, sigma=GAUSSIAN_FILTER_SIGMA):
     return gaussian(img, sigma=sigma)
 
 def fun_filter(img):
-    from skimage.restoration import (denoise_tv_chambolle, denoise_bilateral,
-                                     denoise_wavelet, estimate_sigma)
-    from skimage import data, img_as_float, color
-    
-    imgf = img_as_float(img, force_copy=True)
-       
-    return denoise_tv_chambolle(imgf, weight=0.1)
-    
-
+    from skimage.filters import threshold_local
+           
+    thresh =  threshold_local(img, 11, offset=5)
+    return img > thresh
 
 def threshold(img, method='li'):
     """
@@ -143,36 +140,82 @@ def bounding_columns(img, row, span=20, outliers=5):
     
     return int(begin), int(end) + 1
 
+def head_size(row, col):
+    """
+      Determine head size by looking left and right from midpoint column and breaking at first black pixel
+    """
+    size = 0
+    to_end = row[col:]
+    for i in range(len(to_end)):
+        if to_end[i]: 
+            size +=1 
+        else: 
+            break
+        
+    to_begin = row[:col]
+    for i in range(len(to_begin)-1, -1, -1):
+        if to_begin[i]:
+            size += 1
+        else:
+            break
+        
+    return size  
+
+def head_begin(img, torso_begin_row):
+    """
+        Returns head begin row by taking the minimum of top of head - estimated head size
+        and first spot where 3 peaks were found
+    """
+    EST_HEAD_SIZE = 65
+    
+    rows, columns = img.shape
+    
+    col = columns // 2
+    sizes = []
+    head_top = 0
+    for row in range(rows):
+        if img[row, col]:
+            head_top = row
+            break
+            #size = head_size(img[i], col)
+            #sizes.append(size)    
+    
+    HEAD_MARGIN = 100
+    head_begin_row = binary_peaks(img[:torso_begin_row-HEAD_MARGIN], 3)
+    if head_begin_row is not None:
+        return max(head_begin_row, head_top - EST_HEAD_SIZE)
+    else:
+        return head_top + EST_HEAD_SIZE
+    #print(sizes)
+
 def critical_points(img):
     """
         Takes the (front or back) image array and returns the critical points needed to create zones:
     """
-    #gauss = gaussian_filter(img)
-    gauss = fun_filter(img)
-    if _DEBUG_: util.plot_compare(img, gauss)
+    transforms = OrderedDict()
+    transforms[gaussian_filter] = {}
+    transforms[threshold] = {}
+    transforms[open] = {'rad': 22}
+    transforms[close] = {'rad': 10}
     
-    #holes_filled = fill_holes(gauss)
-    #if _DEBUG_: util.plot_compare(gauss, holes_filled)
+    imgs = [img]
+    cur_img = 0
+    for method, kwargs in transforms.items():
+        imgt = method(imgs[cur_img], **kwargs)
+        if _DEBUG_: util.plot_compare(imgs[cur_img], imgt)
+        imgs.append(imgt)
+        cur_img += 1
     
-    thresh = threshold(gauss)
-    if _DEBUG_: util.plot_compare(gauss, thresh)
-
-    closed = close(thresh, rad=15)
-    if _DEBUG_: util.plot_compare(thresh, closed)
-    
-    opened = open(closed, rad=4)
-    if _DEBUG_: util.plot_compare(closed, opened)
+    transformed_image = imgs[-1]
     
     TORSO_MARGIN = 100
-    HEAD_MARGIN = 100
     
-    #torso_begin_row = min(binary_peaks(thresh[:-100], 1), binary_peaks(closed[:-100], 1), binary_peaks(opened[:-100], 1))
-    torso_begin_row = binary_peaks(opened[:-TORSO_MARGIN], 1)
-    head_begin_row = binary_peaks(opened[:torso_begin_row-HEAD_MARGIN], 3)
+    torso_begin_row = binary_peaks(transformed_image[:-TORSO_MARGIN], 1)
+    torso_begin_column, torso_end_column = bounding_columns(transformed_image, torso_begin_row)
+    
+    head_begin_row = head_begin(transformed_image, torso_begin_row)
 
-    torso_begin_column, torso_end_column = bounding_columns(opened, torso_begin_row)
-
-    return opened, torso_begin_row, torso_begin_column, torso_end_column, head_begin_row
+    return transformed_image, torso_begin_row, torso_begin_column, torso_end_column, head_begin_row
 
 def create_zones(file=None, slices=[], src_dir='train', save_file='zone_test'):
     # Read first file from shuffled list
