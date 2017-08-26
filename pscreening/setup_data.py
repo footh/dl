@@ -151,6 +151,12 @@ def label_dict(label_file='stage1_labels.csv'):
             
         return label_dict
     
+def get_zones(label_dict, id):
+    if label_dict is None:
+        label_dict = label_dict()
+        
+    return np.where(label_dict[id])[0] + 1
+    
 def setup_data(src_dir, label_file, numValid=None, numTest=None, ext='aps'):
     """
         Moves the unlabeled files to submission dir, and the rest to train, valid and test directories
