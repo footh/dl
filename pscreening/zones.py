@@ -8,6 +8,7 @@ from setup_data import shuffled_files, label_dict
 from PIL import Image, ImageDraw, ImageFont
 import os
 from collections import OrderedDict
+import zones_config
 
 _DEBUG_ = False
 
@@ -256,13 +257,10 @@ def critical_points(imga_dict):
     
     return point_dict
 
-def create_zones(file=None, slices=[], src_dir='train', save_file='zone_test'):
-    # Read first file from shuffled list
-    if file is None:
-        file = shuffled_files(src_dir)[0]
-        print(file)
-
-    file_data = util.read_data(file)
+def create_zones16(file_data):
+    """
+        Takes the 16 slice file data and returns the zone rectangles by slice
+    """
     
     crit_point_slices = [0]
     crit_point_imga_dict = {}
@@ -272,37 +270,105 @@ def create_zones(file=None, slices=[], src_dir='train', save_file='zone_test'):
         crit_point_imga_dict[slice] = np.asarray(img)
     
     crit_point_dict = critical_points(crit_point_imga_dict)
+    
+    # 16 slices, 17 zones (to keep zone indices equal to zone diagram adding one more. 0 index not used), 4 points for rectangle of zone
+    zones = np.zeros((16, 18, 4), dtype=np.uint16)
+    
+    TORSO_PORTIONS = 15
+    UPPER_TORSO_PORTION = 4
+    LOWER_TORSO_PORTION = 10
+    
+    Z67_SLICE_ADJ = 0.1
+    Z8910_SLICE_ADJ = 0.05
+    
+    c_tbr, c_tbc, c_tec, c_hbr = crit_point_dict[0]
 
-    imga = crit_point_imga_dict[0]
-    torso_begin_row, torso_begin_column, torso_end_column, head_begin_row = crit_point_dict[0]
-    
-    rows, columns = imga.shape
+    c_torso_height = c_hbr - c_tbr
+    c_torso_unit = c_torso_height // TORSO_PORTIONS
+    c_torso_width = c_tec - c_tbc
 
-    slice = 0
-    torso_size = head_begin_row - torso_begin_row
-    torso_unit = torso_size // 15
-    zone_5_endrow = head_begin_row - 4 * torso_unit
-    zone_67_endrow = head_begin_row - 10 * torso_unit
-    torso_width = torso_end_column - torso_begin_column
-    zone_67_column = (torso_width // 2 + torso_begin_column) - int(slice * torso_width * 0.1)
-    
-    draw = ImageDraw.Draw(img)
-    #draw.line([(0, torso_begin_row), (columns-1, torso_begin_row)], fill='white')
-    draw.line([(0, head_begin_row), (columns-1, head_begin_row)], fill='white')
-    draw.line([(torso_begin_column, torso_begin_row), (torso_begin_column, head_begin_row)], fill='white')
-    draw.line([(torso_end_column, torso_begin_row), (torso_end_column, head_begin_row)], fill='white')
-    
-    #zone 5 bottom
-    draw.line([(torso_begin_column, zone_5_endrow), (torso_end_column, zone_5_endrow)], fill='white')
-    #zone 6/7 split
-    draw.line([(zone_67_column, zone_5_endrow), (zone_67_column, zone_67_endrow)], fill='white')
-    #zone 6/7 end
-    draw.line([(torso_begin_column, zone_67_endrow), (torso_end_column, zone_67_endrow)], fill='white')
-    
-    del draw
+    # Run for (0,8), (1,9) and (2,10)    
+    torso_split_row = c_hbr - UPPER_TORSO_PORTION * c_torso_unit
+    waist_split_row = c_hbr - LOWER_TORSO_PORTION * c_torso_unit
+    lower_torso_split_column = c_torso_width // 2 + c_tbc
 
-    if save_file is not None:
-        img.save(os.path.join('zones', save_file + str(0) + '.png'))
+    upper_torso_rect = [c_tbc, c_hbr, c_tec, torso_split_row]
+    left_torso_rect = [c_tbc, torso_split_row, lower_torso_split_column, waist_split_row]
+    right_torso_rect = [lower_torso_split_column, torso_split_row, c_tec, waist_split_row]
+    
+    zones[0][5] = zones[8][17] = upper_torso_rect
+    zones[0][6] = zones[8][7] = left_torso_rect
+    zones[0][7] = zones[8][6] = right_torso_rect
+   
+
+#     #torso_cursor = slice % 4
+#     #if (slice // 8) % 2 == 1: torso_cursor = -torso_cursor
+#     
+#     
+#     z5_er = c_hbr - ZONE5_PORTION * c_torso_unit
+#     z67_er = c_hbr - ZONE67_PORTION * c_torso_unit
+#     z67_c = (c_torso_width // 2 + c_tbc) - int(torso_cursor * c_torso_width * Z67_SLICE_ADJ)
+#     
+#     z89_c = (c_torso_width // 3 + c_tbc) - int(torso_cursor * c_torso_width * Z8910_SLICE_ADJ)
+#     z910_c = ((c_torso_width // 3) * 2 + c_tbc) - int(torso_cursor * c_torso_width * Z8910_SLICE_ADJ)
+
+ 
+    return zones 
+    
+
+def draw_zones(file=None, src_dir='train', save_file='zone_test'):
+    # Read first file from shuffled list
+    if file is None:
+        file = shuffled_files(src_dir)[0]
+        print(file)
+
+    file_data = util.read_data(file)
+
+    zones = create_zones16(file_data)    
+    
+    for slice in range(16):
+        if slice == 0 or slice == 8:
+            img = np.flipud(file_data[:,:,slice].transpose())
+            img = misc.toimage(img, channel_axis=2)
+            draw = ImageDraw.Draw(img)
+            for zone in range(1,18,1):
+                if np.sum(zones[slice, zone]) > 0:
+                    print(f"slice, zone: {(slice, zone)}")
+                    rect = list(zones[slice, zone])
+                    print(f"rect: {rect}")
+                    draw.rectangle(rect, outline='white')
+                    draw.text((rect[0]+2, rect[1]+2), str(zone), fill='white')            
+            del draw
+                    
+            if save_file is not None:
+                img.save(os.path.join('zones', save_file + str(slice) + '.png'))
+
+
+    
+#     img = np.flipud(file_data[:,:,slice].transpose())
+#     img = misc.toimage(img, channel_axis=2)
+#     imga = np.asarray(img)
+#     rows, columns = imga.shape  
+# 
+#     draw = ImageDraw.Draw(img)
+#     #draw.line([(0, torso_begin_row), (columns-1, torso_begin_row)], fill='white')
+#     draw.line([(c_tbc, c_hbr), (c_tec, c_hbr)], fill='white')
+#     draw.line([(c_tbc, c_hbr), (c_tbc, c_tbr)], fill='white')
+#     draw.line([(c_tec, c_hbr), (c_tec, c_tbr)], fill='white')
+#     
+#     #zone 5 bottom
+#     draw.line([(c_tbc, z5_er), (c_tec, z5_er)], fill='white')
+#     #zone 6/7 split
+#     draw.line([(z67_c, z5_er), (z67_c, z67_er)], fill='white')
+#     #zone 6/7 end
+#     draw.line([(c_tbc, z67_er), (c_tec, z67_er)], fill='white')
+#      #zone 8/9 split
+#     draw.line([(z89_c, z67_er), (z89_c, c_tbr)], fill='white')
+#     #zone 9/10 split
+#     draw.line([(z910_c, z67_er), (z910_c, c_tbr)], fill='white')
+#    
+#     del draw
+# 
+#     if save_file is not None:
+#         img.save(os.path.join('zones', save_file + str(slice) + '.png'))
         
-    #return imga
-

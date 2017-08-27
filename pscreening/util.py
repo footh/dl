@@ -92,6 +92,11 @@ def read_header(infile):
     h['spare_end'] = np.fromfile(fid, dtype = np.float32, count = 10)
     return h
 
+def convert_data(data):
+    print('noop')
+    #img = np.flipud(file_data[:,:,slice].transpose())
+
+
 def read_data(infile):
     """Read any of the 4 types of image files, returns a numpy array of the image contents
     """
