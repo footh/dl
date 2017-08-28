@@ -257,17 +257,15 @@ def critical_points(imga_dict):
     
     return point_dict
 
-def create_zones16(file_data):
+def create_zones16(file_images):
     """
-        Takes the 16 slice file data and returns the zone rectangles by slice
+        Takes the 16 slice file images and returns the zone rectangles by slice
     """
     
     crit_point_slices = [0]
     crit_point_imga_dict = {}
     for slice in range(len(crit_point_slices)):
-        img = np.flipud(file_data[:,:,slice].transpose())
-        img = misc.toimage(img, channel_axis=2)
-        crit_point_imga_dict[slice] = np.asarray(img)
+        crit_point_imga_dict[slice] = np.asarray(file_images[slice])
     
     crit_point_dict = critical_points(crit_point_imga_dict)
     
@@ -278,29 +276,38 @@ def create_zones16(file_data):
     UPPER_TORSO_PORTION = 4
     LOWER_TORSO_PORTION = 10
     
-    Z67_SLICE_ADJ = 0.1
-    Z8910_SLICE_ADJ = 0.05
-    
     c_tbr, c_tbc, c_tec, c_hbr = crit_point_dict[0]
 
     c_torso_height = c_hbr - c_tbr
     c_torso_unit = c_torso_height // TORSO_PORTIONS
     c_torso_width = c_tec - c_tbc
 
-    # Run for (0,8), (1,9) and (2,10)    
     torso_split_row = c_hbr - UPPER_TORSO_PORTION * c_torso_unit
     waist_split_row = c_hbr - LOWER_TORSO_PORTION * c_torso_unit
     lower_torso_split_column = c_torso_width // 2 + c_tbc
 
+    waist_split_column1 = c_torso_width // 3 + c_tbc
+    waist_split_column2 = c_torso_width // 3 * 2 + c_tbc
+    
+    # Note: left/right are as the observer of the image
     upper_torso_rect = [c_tbc, c_hbr, c_tec, torso_split_row]
     left_torso_rect = [c_tbc, torso_split_row, lower_torso_split_column, waist_split_row]
     right_torso_rect = [lower_torso_split_column, torso_split_row, c_tec, waist_split_row]
     
+    #TODO: better choice than +25
+    left_waist_rect = [c_tbc, waist_split_row, waist_split_column1, c_tbr+25]
+    mid_waist_rect = [waist_split_column1, waist_split_row, waist_split_column2, c_tbr+25]
+    right_waist_rect = [waist_split_column2, waist_split_row, c_tec, c_tbr+25]
+    
     zones[0][5] = zones[8][17] = upper_torso_rect
     zones[0][6] = zones[8][7] = left_torso_rect
     zones[0][7] = zones[8][6] = right_torso_rect
-   
+    zones[0][8] = zones[8][10] = left_waist_rect
+    zones[0][9] = zones[8][9] = mid_waist_rect
+    zones[0][10] = zones[8][8] = right_waist_rect
 
+#     Z67_SLICE_ADJ = 0.1
+#     Z8910_SLICE_ADJ = 0.05    
 #     #torso_cursor = slice % 4
 #     #if (slice // 8) % 2 == 1: torso_cursor = -torso_cursor
 #     
@@ -316,59 +323,26 @@ def create_zones16(file_data):
     return zones 
     
 
-def draw_zones(file=None, src_dir='train', save_file='zone_test'):
+def draw_zones(file=None, slices=range(16), src_dir='train', save_file='zone_test'):
     # Read first file from shuffled list
     if file is None:
         file = shuffled_files(src_dir)[0]
         print(file)
 
-    file_data = util.read_data(file)
+    file_images = util.read_data(file, as_images=True)
 
-    zones = create_zones16(file_data)    
+    zones = create_zones16(file_images)    
     
-    for slice in range(16):
-        if slice == 0 or slice == 8:
-            img = np.flipud(file_data[:,:,slice].transpose())
-            img = misc.toimage(img, channel_axis=2)
-            draw = ImageDraw.Draw(img)
-            for zone in range(1,18,1):
-                if np.sum(zones[slice, zone]) > 0:
-                    print(f"slice, zone: {(slice, zone)}")
-                    rect = list(zones[slice, zone])
-                    print(f"rect: {rect}")
-                    draw.rectangle(rect, outline='white')
-                    draw.text((rect[0]+2, rect[1]+2), str(zone), fill='white')            
-            del draw
-                    
-            if save_file is not None:
-                img.save(os.path.join('zones', save_file + str(slice) + '.png'))
-
-
-    
-#     img = np.flipud(file_data[:,:,slice].transpose())
-#     img = misc.toimage(img, channel_axis=2)
-#     imga = np.asarray(img)
-#     rows, columns = imga.shape  
-# 
-#     draw = ImageDraw.Draw(img)
-#     #draw.line([(0, torso_begin_row), (columns-1, torso_begin_row)], fill='white')
-#     draw.line([(c_tbc, c_hbr), (c_tec, c_hbr)], fill='white')
-#     draw.line([(c_tbc, c_hbr), (c_tbc, c_tbr)], fill='white')
-#     draw.line([(c_tec, c_hbr), (c_tec, c_tbr)], fill='white')
-#     
-#     #zone 5 bottom
-#     draw.line([(c_tbc, z5_er), (c_tec, z5_er)], fill='white')
-#     #zone 6/7 split
-#     draw.line([(z67_c, z5_er), (z67_c, z67_er)], fill='white')
-#     #zone 6/7 end
-#     draw.line([(c_tbc, z67_er), (c_tec, z67_er)], fill='white')
-#      #zone 8/9 split
-#     draw.line([(z89_c, z67_er), (z89_c, c_tbr)], fill='white')
-#     #zone 9/10 split
-#     draw.line([(z910_c, z67_er), (z910_c, c_tbr)], fill='white')
-#    
-#     del draw
-# 
-#     if save_file is not None:
-#         img.save(os.path.join('zones', save_file + str(slice) + '.png'))
+    for slice in slices:
+        img = file_images[slice]
+        draw = ImageDraw.Draw(img)
+        for zone in range(1,18,1):
+            if np.sum(zones[slice, zone]) > 0:
+                rect = list(zones[slice, zone])
+                draw.rectangle(rect, outline='white')
+                draw.text((rect[0]+2, rect[1]+2), str(zone), fill='white')            
+        del draw
+                
+        if save_file is not None:
+            img.save(os.path.join('zones', save_file + str(slice) + '.png'))
         

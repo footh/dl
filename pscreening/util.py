@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+from scipy import misc
 
 def read_header(infile):
     """Read image header (first 512 bytes)
@@ -92,12 +93,15 @@ def read_header(infile):
     h['spare_end'] = np.fromfile(fid, dtype = np.float32, count = 10)
     return h
 
-def convert_data(data):
-    print('noop')
-    #img = np.flipud(file_data[:,:,slice].transpose())
+def convert_data_img(data):
+    file_images = []
+    d = np.transpose(data)
+    for slice in range(d.shape[0]):
+        file_images.append(misc.toimage(np.flipud(d[slice]), channel_axis=2))
+        
+    return file_images
 
-
-def read_data(infile):
+def read_data(infile, as_images=False):
     """Read any of the 4 types of image files, returns a numpy array of the image contents
     """
     extension = os.path.splitext(infile)[1]
@@ -128,7 +132,10 @@ def read_data(infile):
         imag = data[1,:,:,:].copy()
     fid.close()
     if extension != '.ahi':
-        return data
+        if as_images:
+            return convert_data_img(data)
+        else:
+            return data
     else:
         return real, imag
     
