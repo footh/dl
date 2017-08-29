@@ -151,7 +151,8 @@ def label_dict(label_file='stage1_labels.csv'):
             
         return label_dict
     
-def get_zones(label_dict, id):
+d = label_dict()
+def get_zones(id, label_dict=d):
     if label_dict is None:
         label_dict = label_dict()
         
