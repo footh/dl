@@ -337,19 +337,6 @@ def create_zones16(file_images):
 
     zones[9][5], zones[9][7], zones[9][6], zones[9][10], zones[9][9], zones[9][8] = torso_rects(c_tbr8, c_tbc8, c_tec8, c_hbr, 
                                                                                                 slice_cursor=-1, rot_adj=rot_adj)
-
-#     Z67_SLICE_ADJ = 0.1
-#     Z8910_SLICE_ADJ = 0.05    
-#     #torso_cursor = slice % 4
-#     #if (slice // 8) % 2 == 1: torso_cursor = -torso_cursor
-#     
-#     
-#     z5_er = c_hbr - ZONE5_PORTION * c_torso_unit
-#     z67_er = c_hbr - ZONE67_PORTION * c_torso_unit
-#     z67_c = (c_torso_width // 2 + c_tbc) - int(torso_cursor * c_torso_width * Z67_SLICE_ADJ)
-#     
-#     z89_c = (c_torso_width // 3 + c_tbc) - int(torso_cursor * c_torso_width * Z8910_SLICE_ADJ)
-#     z910_c = ((c_torso_width // 3) * 2 + c_tbc) - int(torso_cursor * c_torso_width * Z8910_SLICE_ADJ)
  
     return zones     
 
