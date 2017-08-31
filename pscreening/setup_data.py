@@ -210,3 +210,17 @@ def setup_data(src_dir, label_file, numValid=None, numTest=None, ext='aps'):
     print('Copying %s training files' % (labeled_count - (valid_count + test_count)))
     copy_files(label_keys[(valid_count + test_count):], src_dir, 'train', ext=ext)
 
+def submission_file():
+    files = os.listdir('submission')
+    files.sort()
+    print(f"{len(files)} files found...")
+    with open('submission.csv', 'w') as sub_file:
+        wr = csv.writer(sub_file, delimiter=',')
+        wr.writerow(['Id', 'Probability'])
+        for file in files:
+            id, _ = file.split('.')
+            for i in range(1, 18, 1):
+                id_zone = id + '_Zone' + str(i)
+                wr.writerow([id_zone, 0.5])
+    
+    
