@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+import matplotlib.animation as anim
 from scipy import misc
 
 def read_header(infile):
@@ -152,3 +153,20 @@ def plot_compare(img1, img2, title1='Image1', title2='Image2'):
     ax2.axis('off')
     ax2.set_adjustable('box-forced')
     plt.show()
+    
+def animate_images(images):
+    image_count = len(images)
+    plot_images = []
+    for i in range(image_count):
+        plot_images.append(np.asarray(images[i]))
+    plot_images = np.asarray(plot_images)
+
+    fig = plt.figure(figsize = (6,6))
+    ax = fig.add_subplot(111)
+    def animate(i):
+        im = ax.imshow(plot_images[i])
+        return [im]
+    ani = anim.FuncAnimation(fig, animate, frames=range(0,plot_images.shape[0]), interval=200, blit=True)
+    plt.show()
+    
+ 
