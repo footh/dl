@@ -133,9 +133,9 @@ def binary_peaks(img, peak_count, hits=20, min_size=10, min_distance=5, down=Tru
 def bounding_columns(img, row, up=10, down=10, outliers=5):
     """
         Find bounding columns of 'row' by looking 'up' and 'down' rows, throwing out top and bottom
-        'outliers' values and averaging the rest.
+        'outliers' values and averaging the rest. (Note that 'up' is subtracting rows because image starts from top.)
     """
-    row_arr, index_arr = np.where(img[row-down:row+up])
+    row_arr, index_arr = np.where(img[row-up:row+down])
     begins = []
     ends = []
     for i in range(up+down):
@@ -266,7 +266,7 @@ def critical_points(imga_dict):
 
 def critical_points_quarters(imga_dict, torso_begin_row):
     """
-        Takes quarter images and gets the torso begin and end columns based on the torso begin row
+        Takes quarter images and gets the torso begin and end columns and the center point based on the torso begin row
     """
     SIDE_MARGIN = 100
     
@@ -293,7 +293,12 @@ def critical_points_quarters(imga_dict, torso_begin_row):
             
             transformed_img = run_transforms(imgt, transforms)
             
-            torso_begin_column, torso_end_column = bounding_columns(transformed_img, torso_begin_row - midrow, up=20, down=5)
+            mod_tbr = torso_begin_row - midrow
+            torso_begin_column, torso_end_column = bounding_columns(transformed_img, mod_tbr, up=mod_tbr, down=5)
+            
+            # This is a cleaner center that won't be skewed by unusual girth
+            center_tbc, center_tec = bounding_columns(transformed_img, mod_tbr, up=10, down=5, outliers=3)
+            center = (center_tbc + center_tec) // 2
             
             torso_begin_columns.append(torso_begin_column + SIDE_MARGIN)
             torso_end_columns.append(torso_end_column + SIDE_MARGIN)
@@ -303,18 +308,24 @@ def critical_points_quarters(imga_dict, torso_begin_row):
         torso_begin_column = max(torso_begin_columns)
         torso_end_column = min(torso_end_columns)
 
-        point_dict[slice] = [torso_begin_column, torso_end_column]
+        point_dict[slice] = [torso_begin_column, torso_end_column, center]
         
     return point_dict
 
 def torso_rects(tbr, tbc, tec, hbr, rows, slice_cursor=0, slice=0, x_rot_adj=0, z_rot_adj=0):
+    #TODO: pass in an optional config for constants so I don't have to constantly stop python when I want to
+    # tweak a parameter during fine-tuning
+    
     
     # Rotation to account for standing off center on the x and z axes. This adjustment applied to the 
     # bounding column values only (from which interior columns are derived).
     #TODO: determine if x adjustment is worth doing (from testing, looks very small)
-    Z_ROT_SLICE_ADJ = 0.25
+    #Z_ROT_SLICE_ADJ = 0.25
+    Z_HEIGHT = 0.25
+    Z_SIGMA = 5.0
+    z_rot_slice_adj = gaussian_fit(slice, Z_HEIGHT, 8, Z_SIGMA)
     rot_adj = int(slice_cursor * x_rot_adj * 0) + \
-              int(slice_cursor * z_rot_adj * Z_ROT_SLICE_ADJ)              
+              int(slice_cursor * z_rot_adj * z_rot_slice_adj)            
 
     tbc_adj = tbc + rot_adj
     tec_adj = tec + rot_adj
@@ -341,11 +352,11 @@ def torso_rects(tbr, tbc, tec, hbr, rows, slice_cursor=0, slice=0, x_rot_adj=0, 
     TORSO_PORTIONS = 15
     UPPER_TORSO_PORTION = 4
     LOWER_TORSO_PORTION = 10
-    torso_height = hbr - tbr
+    torso_height = tbr - hbr
     torso_unit = torso_height // TORSO_PORTIONS
 
-    torso_split_row = hbr - UPPER_TORSO_PORTION * torso_unit
-    waist_split_row = hbr - LOWER_TORSO_PORTION * torso_unit
+    torso_split_row = hbr + UPPER_TORSO_PORTION * torso_unit
+    waist_split_row = hbr + LOWER_TORSO_PORTION * torso_unit
     lower_torso_split_column = (torso_width // 2 + tbc_adj) + slice_col_adj1                          
 
     WAIST_PORTIONS = 15
@@ -374,11 +385,42 @@ def torso_rects(tbr, tbc, tec, hbr, rows, slice_cursor=0, slice=0, x_rot_adj=0, 
     right_torso_rect = [lower_torso_split_column, torso_split_row, tec_adj, waist_split_row]
     
     #TODO: better choice than +35
-    left_waist_rect = [tbc_adj, waist_split_row, waist_split_column1, tbr+35]
-    mid_waist_rect = [waist_split_column1, waist_split_row, waist_split_column2, tbr+35]
-    right_waist_rect = [waist_split_column2, waist_split_row, tec_adj, tbr+35]
+    leg_size = rows - tbr
+    leg_portion = leg_size // 7
+    print(f"leg_portion: {leg_portion}")
+    left_waist_rect = [tbc_adj, waist_split_row, waist_split_column1, tbr+leg_portion]
+    mid_waist_rect = [waist_split_column1, waist_split_row, waist_split_column2, tbr+leg_portion]
+    right_waist_rect = [waist_split_column2, waist_split_row, tec_adj, tbr+leg_portion]
     
     return upper_torso_rect, left_torso_rect, right_torso_rect, left_waist_rect, mid_waist_rect, right_waist_rect
+
+def torso_rects_side(tbr, tbc, tec, hbr):
+    TORSO_PORTIONS = 15
+    TORSO_PORTION = 10
+    torso_height = tbr - hbr
+    torso_unit = torso_height // TORSO_PORTIONS
+    
+    waist_split_row = hbr + TORSO_PORTION * torso_unit
+        
+    torso_rect = [tbc, hbr+20, tec, waist_split_row] #TODO: better then +20
+    waist_rect = [tbc, waist_split_row, tec, tbr+0]
+    
+    return torso_rect, waist_rect
+
+def adjust_torso_bounds(tbc1, tec1, tbc2, tec2):
+    """
+        Will adjust the torso bounding columns by apportioning up the smaller width, (larger width stays the same)
+    """
+    ADJUST_PCT = 0.8
+    w1 = tec1 - tbc1
+    w2 = tec2 - tbc2
+    
+    diff_adj = abs(w1-w2) * ADJUST_PCT // 2
+    if w1 > w2:
+        return tbc1, tec1, tbc2-diff_adj, tec2+diff_adj
+    else:
+        return tbc1-diff_adj, tec1+diff_adj, tbc2, tec2
+    
 
 def create_zones16(file_images):
     """
@@ -392,28 +434,34 @@ def create_zones16(file_images):
     crit_point_dict = critical_points(crit_point_imga_dict)
  
     c_tbr0, c_tbc0, c_tec0, c_hbr0 = crit_point_dict[0]
-    c_tbr8, c_tbc8, c_tec8, c_hbr8 = crit_point_dict[8]  
+    c_tbr8, c_tbc8, c_tec8, c_hbr8 = crit_point_dict[8]
+    
+    c_tbc0a, c_tec0a, c_tbc8a, c_tec8a = adjust_torso_bounds(c_tbc0, c_tec0, c_tbc8, c_tec8)
     
     crit_point_slices_q = [4, 12]
     crit_point_imga_dict_q = {}
     for slice in crit_point_slices_q:
         crit_point_imga_dict_q[slice] = np.asarray(file_images[slice])
     
-    crit_point_dict_q = critical_points_quarters(crit_point_imga_dict_q, c_tbr0)
-
-    c_tbc4, c_tec4 = crit_point_dict_q[4]
-    c_tbc12, c_tec12 = crit_point_dict_q[12]
-  
     # Difference of calculated midpoint from actual midpoint (do I even need this)?
-    x_rot_adj = 256 - ((c_tbc0 + c_tec0) // 2)
+    rows, columns = 660, 512 # TODO: parameterize
+    x_rot_adj = (columns // 2) - ((c_tbc0 + c_tec0) // 2)
     print(f"x_rot_adj: {x_rot_adj}")
     print(f"tbc diff: {c_tbc8-c_tbc0}")
     print(f"tec diff: {c_tec8-c_tec0}")
+
+    crit_point_dict_q = critical_points_quarters(crit_point_imga_dict_q, c_tbr0)
+
+    c_tbc4, c_tec4, c_ctr4 = crit_point_dict_q[4]
+    c_tbc12, c_tec12, c_ctr12 = crit_point_dict_q[12]
     
-    z_rot_adj = (c_tbc12 + c_tec12) // 2 - (c_tbc4 + c_tbc4) // 2
+    z_depth = ((c_tec12 - c_tbc12) + (c_tec4 - c_tbc4)) // 2
+    print(f"z_depth: {z_depth}")
+    
+    z_rot_adj = c_ctr12 - c_ctr4
     print(f"z_rot_adj: {z_rot_adj}")
     
-    #c_tbr = min(c_tbr0, c_tbr8)
+    c_tbr = int(0.8 * max(c_tbr0, c_tbr8) + 0.2 * min(c_tbr0, c_tbr8))
     c_hbr = (c_hbr0 + c_hbr8) // 2
 
     # 16 slices, 17 zones (to keep zone indices equal to zone diagram adding one more. 0 index not used), 
@@ -429,25 +477,33 @@ def create_zones16(file_images):
     #        0
     zones = np.zeros((16, 18, 4), dtype=np.uint16)
         
-    zones[0][5], zones[0][6], zones[0][7], zones[0][8], zones[0][9], zones[0][10] = torso_rects(c_tbr0, c_tbc0, c_tec0, c_hbr)
+    zones[0][5], zones[0][6], zones[0][7], zones[0][8], zones[0][9], zones[0][10] = torso_rects(c_tbr, c_tbc0a, c_tec0a, c_hbr, rows)
 
-    zones[1][5], zones[1][6], zones[1][7], zones[1][8], zones[1][9], zones[1][10] = torso_rects(c_tbr0, c_tbc0, c_tec0, c_hbr, 
+    zones[1][5], zones[1][6], zones[1][7], zones[1][8], zones[1][9], zones[1][10] = torso_rects(c_tbr, c_tbc0a, c_tec0a, c_hbr, rows,
                                                                                                 slice_cursor=-1, slice=1, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
-    zones[2][5], zones[2][6], zones[2][7], zones[2][8], zones[2][9], zones[2][10] = torso_rects(c_tbr0, c_tbc0, c_tec0, c_hbr, 
+    zones[2][5], zones[2][6], zones[2][7], zones[2][8], zones[2][9], zones[2][10] = torso_rects(c_tbr, c_tbc0a, c_tec0a, c_hbr, rows,
                                                                                                 slice_cursor=-2, slice=2, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
-    zones[6][17], zones[6][7], zones[6][6], zones[6][10], zones[6][9], zones[6][8] = torso_rects(c_tbr8, c_tbc8, c_tec8, c_hbr, 
+    zones[3][7], zones[3][10] = torso_rects_side(c_tbr, c_tbc4, c_tec4, c_hbr)
+    zones[4][7], zones[4][10] = torso_rects_side(c_tbr, c_tbc4, c_tec4, c_hbr)
+    zones[5][7], zones[5][10] = torso_rects_side(c_tbr, c_tbc4, c_tec4, c_hbr)
+    
+    zones[6][17], zones[6][7], zones[6][6], zones[6][10], zones[6][9], zones[6][8] = torso_rects(c_tbr, c_tbc8a, c_tec8a, c_hbr, rows,
                                                                                                 slice_cursor=2, slice=6, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj)
-    zones[7][17], zones[7][7], zones[7][6], zones[7][10], zones[7][9], zones[7][8] = torso_rects(c_tbr8, c_tbc8, c_tec8, c_hbr, 
+    zones[7][17], zones[7][7], zones[7][6], zones[7][10], zones[7][9], zones[7][8] = torso_rects(c_tbr, c_tbc8a, c_tec8a, c_hbr, rows,
                                                                                                 slice_cursor=1, slice=7, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj)    
-    zones[8][17], zones[8][7], zones[8][6], zones[8][10], zones[8][9], zones[8][8] = torso_rects(c_tbr8, c_tbc8, c_tec8, c_hbr, slice=8)
+    zones[8][17], zones[8][7], zones[8][6], zones[8][10], zones[8][9], zones[8][8] = torso_rects(c_tbr, c_tbc8a, c_tec8a, c_hbr, rows, slice=8)
 
-    zones[9][17], zones[9][7], zones[9][6], zones[9][10], zones[9][9], zones[9][8] = torso_rects(c_tbr8, c_tbc8, c_tec8, c_hbr, 
+    zones[9][17], zones[9][7], zones[9][6], zones[9][10], zones[9][9], zones[9][8] = torso_rects(c_tbr, c_tbc8a, c_tec8a, c_hbr, rows,
                                                                                                  slice_cursor=-1, slice=9, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj)
-    zones[10][17], zones[10][7], zones[10][6], zones[10][10], zones[10][9], zones[10][8] = torso_rects(c_tbr8, c_tbc8, c_tec8, c_hbr, 
+    zones[10][17], zones[10][7], zones[10][6], zones[10][10], zones[10][9], zones[10][8] = torso_rects(c_tbr, c_tbc8a, c_tec8a, c_hbr, rows, 
                                                                                                        slice_cursor=-2, slice=10, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj)
-    zones[14][5], zones[14][6], zones[14][7], zones[14][8], zones[14][9], zones[14][10] = torso_rects(c_tbr0, c_tbc0, c_tec0, c_hbr, 
+    zones[11][6], zones[11][8] = torso_rects_side(c_tbr, c_tbc12, c_tec12, c_hbr)
+    zones[12][6], zones[12][8] = torso_rects_side(c_tbr, c_tbc12, c_tec12, c_hbr)
+    zones[13][6], zones[13][8] = torso_rects_side(c_tbr, c_tbc12, c_tec12, c_hbr)
+    
+    zones[14][5], zones[14][6], zones[14][7], zones[14][8], zones[14][9], zones[14][10] = torso_rects(c_tbr, c_tbc0a, c_tec0a, c_hbr, rows,
                                                                                                 slice_cursor=2, slice=14, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
-    zones[15][5], zones[15][6], zones[15][7], zones[15][8], zones[15][9], zones[15][10] = torso_rects(c_tbr0, c_tbc0, c_tec0, c_hbr, 
+    zones[15][5], zones[15][6], zones[15][7], zones[15][8], zones[15][9], zones[15][10] = torso_rects(c_tbr, c_tbc0a, c_tec0a, c_hbr, rows,
                                                                                                 slice_cursor=1, slice=15, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
     return zones     
 
