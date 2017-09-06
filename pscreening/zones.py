@@ -63,7 +63,7 @@ def fill_holes(img):
         
     return filled
 
-def close(img, rad=10, times=1):
+def close_filter(img, rad=10, times=1):
     selem = disk(rad)
     close_img = img
     for i in range(times):
@@ -71,7 +71,7 @@ def close(img, rad=10, times=1):
         
     return close_img
 
-def open(img, rad=10, times=1):
+def open_filter(img, rad=10, times=1):
     selem = disk(rad)
     open_img = img
     for i in range(times):
@@ -194,16 +194,6 @@ def nub_head_begin(imga):
     #print(f"head_top: {head_top}")
     #print(f"head_begin1, head_begin2: {head_begin1}, {head_begin2}")
     return head_begin1, head_begin2
-
-def nub_torso_begin(imga):
-    """
-        Get the torso points of the nub image left after the transform
-    """
-    torso_begin_row = binary_peaks(imga, 2, hits=10)
-    
-    torso_begin_column, torso_end_column = bounding_columns(imga, torso_begin_row, up=20, down=5)
-        
-    return torso_begin_row, torso_begin_column, torso_end_column
     
 def critical_points(imga_dict):
     """
@@ -221,24 +211,39 @@ def critical_points(imga_dict):
         transforms = OrderedDict()
         transforms[gaussian_filter] = {}
         transforms[threshold] = {}
-        transforms[open] = {}
+        transforms[open_filter] = {}
         
         sigmas = [4, 6]
         rads = [10, 15]
         imgt = imga[midrow:]
         for i in range(len(sigmas)):
             transforms[gaussian_filter] = {'sigma': sigmas[i]}
-            transforms[open] = {'rad': rads[i]}
+            transforms[open_filter] = {'rad': rads[i]}
             
             transformed_img = run_transforms(imgt, transforms)
             
-            torso_begin_row, torso_begin_column, torso_end_column = nub_torso_begin(transformed_img)
-            torso_begin_rows.append(torso_begin_row + midrow)
-            torso_begin_columns.append(torso_begin_column)
-            torso_end_columns.append(torso_end_column)
+            # Get two torso begin rows, looking down when two peaks are hit 
+            torso_begin_rows.append(binary_peaks(transformed_img, 2, hits=10) + midrow)
+            # Looking up when 1 peak is hit, starting at the 3/4 point (of original image)
+            torso_begin_rows.append(binary_peaks(transformed_img[:midrow//2], 1, hits=10, down=False) + midrow)
             
         print(f"torso_begin_rows({slice}): {torso_begin_rows}")
-        torso_begin_row = min(torso_begin_rows)
+        # Drop high and low and take max of rest
+        torso_begin_rows.sort()
+        torso_begin_row = min(torso_begin_rows[1:-1])
+
+        sigmas = [6]
+        rads = [15]
+        for i in range(len(sigmas)):
+            transforms[gaussian_filter] = {'sigma': sigmas[i]}
+            transforms[open_filter] = {'rad': rads[i]}
+            
+            transformed_img = run_transforms(imgt, transforms)
+            
+            tbc, tec = bounding_columns(transformed_img, torso_begin_row-midrow, up=20, down=5)
+            torso_begin_columns.append(tbc)
+            torso_end_columns.append(tec)
+            
         torso_begin_column = max(torso_begin_columns)
         torso_end_column = min(torso_end_columns)
         
@@ -249,7 +254,7 @@ def critical_points(imga_dict):
         imgt = imga[:midrow, torso_begin_column:torso_end_column]    
         for i in range(len(sigmas)):
             transforms[gaussian_filter] = {'sigma': sigmas[i]}
-            transforms[open] = {'rad': rads[i]}
+            transforms[open_filter] = {'rad': rads[i]}
             
             transformed_img = run_transforms(imgt, transforms)
             
@@ -281,7 +286,7 @@ def critical_points_quarters(imga_dict, torso_begin_row):
         transforms = OrderedDict()
         transforms[gaussian_filter] = {}
         transforms[threshold] = {}
-        transforms[open] = {}
+        transforms[open_filter] = {}
         #transforms[convex_hull] = {}
         
         sigmas = [4, 6]
@@ -289,7 +294,7 @@ def critical_points_quarters(imga_dict, torso_begin_row):
         imgt = imga[midrow:,SIDE_MARGIN:-SIDE_MARGIN]
         for i in range(len(sigmas)):
             transforms[gaussian_filter] = {'sigma': sigmas[i]}
-            transforms[open] = {'rad': rads[i]}
+            transforms[open_filter] = {'rad': rads[i]}
             
             transformed_img = run_transforms(imgt, transforms)
             
@@ -535,3 +540,19 @@ def draw_zones(file=None, slices=range(16), src_dir='train', save_file='zone_tes
             
     if animation:
         util.animate_images(file_images)        
+
+def points_file(src_dir='train'):
+    import csv
+    files = shuffled_files(src_dir)
+    with open('points.csv', 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile, delimiter=',')
+        for f in files:
+            print(f"Reading file {f}...")
+            file_images = util.read_data(f, as_images=True)
+            print(f"Creating zones...")
+            zones = create_zones16(file_images)
+            print(f"Write record...")
+            for i in range(16):
+                row = [[f], [i], list(zones[i][5]), list(zones[i][6]), list(zones[i][7]), list(zones[i][8]), list(zones[i][9]), list(zones[i][10])]
+                row = [val for sublist in row for val in sublist]
+                writer.writerow(row)
