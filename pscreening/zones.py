@@ -194,24 +194,33 @@ def nub_head_begin(imga):
     #print(f"head_top: {head_top}")
     #print(f"head_begin1, head_begin2: {head_begin1}, {head_begin2}")
     return head_begin1, head_begin2
+
+def adjust_bounding_points(points, adjust_ratio=0.8):
+    """
+        Will adjust the bounding columns by apportioning up the smaller width by the 'adjust_ratio' 
+        (larger width stays the same). Input is a numpy array of points [[tbc1, tec1], [tbc2, tec2]...]
+    """
+    diffs = points[:,1] - points[:,0]
+    diff_adj = np.asarray((np.max(diffs) - diffs) * adjust_ratio // 2, dtype=int)
+    diff_adj_matrix = np.column_stack((-diff_adj, diff_adj))
+    
+    return points + diff_adj_matrix
     
 def critical_points(imga_dict):
     """
         Takes the (front or back) image array and returns the critical points needed to create zones:
     """
-    point_dict = {}
-    for slice, imga in imga_dict.items():    
+    transforms = OrderedDict()
+    transforms[gaussian_filter] = {}
+    transforms[threshold] = {}
+    transforms[open_filter] = {}
+    
+    point_dict = OrderedDict()
+    # First, determine the torso begin row
+    torso_begin_rows = []
+    for slice, imga in imga_dict.items():
         rows, columns = imga.shape
         midrow = rows // 2
-        
-        torso_begin_rows = []
-        torso_begin_columns = []
-        torso_end_columns = []
-        
-        transforms = OrderedDict()
-        transforms[gaussian_filter] = {}
-        transforms[threshold] = {}
-        transforms[open_filter] = {}
         
         sigmas = [4, 6]
         rads = [10, 15]
@@ -225,15 +234,20 @@ def critical_points(imga_dict):
             # Get two torso begin rows, looking down when two peaks are hit 
             torso_begin_rows.append(binary_peaks(transformed_img, 2, hits=10) + midrow)
             # Looking up when 1 peak is hit, starting at the 3/4 point (of original image)
-            torso_begin_rows.append(binary_peaks(transformed_img[:midrow//2], 1, hits=10, down=False) + midrow)
-            
-        print(f"torso_begin_rows({slice}): {torso_begin_rows}")
-        # Drop high and low and take max of rest
-        torso_begin_rows.sort()
-        torso_begin_row = min(torso_begin_rows[1:-1])
-
+            torso_begin_rows.append(binary_peaks(transformed_img[:midrow//2], 1, hits=10, down=False) + midrow)            
+        
+    print(f"torso_begin_rows(0 and 8): {torso_begin_rows}")
+    # Drop 3 high and low and take min of rest
+    torso_begin_rows.sort()
+    torso_begin_row = min(torso_begin_rows[3:-3])
+    print(f"torso_begin_row: {torso_begin_row}")
+    
+    # Next, get the torso bounding columns
+    torso_columns =  []
+    for slice, imga in imga_dict.items():
         sigmas = [6]
-        rads = [15]
+        rads = [18]
+        imgt = imga[midrow:]
         for i in range(len(sigmas)):
             transforms[gaussian_filter] = {'sigma': sigmas[i]}
             transforms[open_filter] = {'rad': rads[i]}
@@ -241,32 +255,38 @@ def critical_points(imga_dict):
             transformed_img = run_transforms(imgt, transforms)
             
             tbc, tec = bounding_columns(transformed_img, torso_begin_row-midrow, up=20, down=5)
-            torso_begin_columns.append(tbc)
-            torso_end_columns.append(tec)
-            
-        torso_begin_column = max(torso_begin_columns)
-        torso_end_column = min(torso_end_columns)
-        
-        head_begin_rows = []
+            torso_columns.append([tbc, tec])
+
+    print(f"torso_columns: {torso_columns}")
+      
+    # Finally, the head begin row
+    head_begin_rows = []
+    for idx, (slice, imga) in enumerate(imga_dict.items()):
+        rows, columns = imga.shape
+        midrow = rows // 2
 
         sigmas = [4, 6]
         rads = [10, 15]
-        imgt = imga[:midrow, torso_begin_column:torso_end_column]    
+        imgt = imga[:midrow, torso_columns[idx][0]:torso_columns[idx][1]]    
         for i in range(len(sigmas)):
             transforms[gaussian_filter] = {'sigma': sigmas[i]}
             transforms[open_filter] = {'rad': rads[i]}
             
             transformed_img = run_transforms(imgt, transforms)
             
-            head_begin_rows.extend(nub_head_begin(transformed_img))   
+            head_begin_rows.extend(nub_head_begin(transformed_img))       
+
+    print(f"head_begin_rows(0 and 8): {head_begin_rows}")
+    # Drop high and low and take max of rest
+    #TODO: blend this and tbr, or rather use the sample to come up with a good point to use
+    head_begin_rows.sort()
+    head_begin_row = max(head_begin_rows[3:-3])
+       
+    torso_columns_adj = adjust_bounding_points(np.asarray(torso_columns))
+    print(f"torso_columns_adj: {list(torso_columns_adj)}")
+    for idx, (slice, _) in enumerate(imga_dict.items()):
+        point_dict[slice] = [torso_begin_row, *torso_columns_adj[idx], head_begin_row]
         
-        print(f"head_begin_rows({slice}): {head_begin_rows}")
-        # Drop high and low and take max of rest
-        head_begin_rows.sort()
-        head_begin_row = max(head_begin_rows[1:-1])
-        
-        point_dict[slice] = [torso_begin_row, torso_begin_column, torso_end_column, head_begin_row]
-    
     return point_dict
 
 def critical_points_quarters(imga_dict, torso_begin_row):
@@ -275,7 +295,7 @@ def critical_points_quarters(imga_dict, torso_begin_row):
     """
     SIDE_MARGIN = 100
     
-    point_dict = {}
+    point_dict = OrderedDict()
     for slice, imga in imga_dict.items():    
         rows, columns = imga.shape
         midrow = rows // 2
@@ -356,7 +376,7 @@ def torso_rects(tbr, tbc, tec, hbr, rows, slice_cursor=0, slice=0, x_rot_adj=0, 
     
     TORSO_PORTIONS = 15
     UPPER_TORSO_PORTION = 4
-    LOWER_TORSO_PORTION = 10
+    LOWER_TORSO_PORTION = 11
     torso_height = tbr - hbr
     torso_unit = torso_height // TORSO_PORTIONS
 
@@ -369,13 +389,6 @@ def torso_rects(tbr, tbc, tec, hbr, rows, slice_cursor=0, slice=0, x_rot_adj=0, 
     side_waist_size = torso_width // WAIST_PORTIONS * SIDE_WAIST_PORTION
     waist_split_column1 = side_waist_size + tbc_adj + slice_col_adj2
     waist_split_column2 = torso_width - side_waist_size + tbc_adj + slice_col_adj2
-#     if slice == 0 or slice == 8:
-#         print(f"--------------slice {slice}")
-#         print(f"torso_width: {torso_width}")
-#         print(f"waist portions: {torso_width // WAIST_PORTIONS}")
-#         print(f"left waist size: {side_waist_size}")
-#         print(f"mid waist size: {torso_width - 2 * side_waist_size}")
-#         print(f"right waist size: {torso_width - side_waist_size}")
     
     #TODO: build rects but have 'valid_rect' method that makes sure rect doesn't have (-) values o/w returns (0,0,0,0),
     # but if padding zone an 'invalid' rect may become valid?
@@ -389,19 +402,19 @@ def torso_rects(tbr, tbc, tec, hbr, rows, slice_cursor=0, slice=0, x_rot_adj=0, 
     left_torso_rect = [tbc_adj, torso_split_row, lower_torso_split_column, waist_split_row]
     right_torso_rect = [lower_torso_split_column, torso_split_row, tec_adj, waist_split_row]
     
-    #TODO: better choice than +35
+    #TODO: use leg_portion, not +0
     leg_size = rows - tbr
     leg_portion = leg_size // 7
     print(f"leg_portion: {leg_portion}")
-    left_waist_rect = [tbc_adj, waist_split_row, waist_split_column1, tbr+leg_portion]
-    mid_waist_rect = [waist_split_column1, waist_split_row, waist_split_column2, tbr+leg_portion]
-    right_waist_rect = [waist_split_column2, waist_split_row, tec_adj, tbr+leg_portion]
+    left_waist_rect = [tbc_adj, waist_split_row, waist_split_column1, tbr+0]
+    mid_waist_rect = [waist_split_column1, waist_split_row, waist_split_column2, tbr+0]
+    right_waist_rect = [waist_split_column2, waist_split_row, tec_adj, tbr+0]
     
     return upper_torso_rect, left_torso_rect, right_torso_rect, left_waist_rect, mid_waist_rect, right_waist_rect
 
 def torso_rects_side(tbr, tbc, tec, hbr):
     TORSO_PORTIONS = 15
-    TORSO_PORTION = 10
+    TORSO_PORTION = 11
     torso_height = tbr - hbr
     torso_unit = torso_height // TORSO_PORTIONS
     
@@ -412,50 +425,40 @@ def torso_rects_side(tbr, tbc, tec, hbr):
     
     return torso_rect, waist_rect
 
-def adjust_torso_bounds(tbc1, tec1, tbc2, tec2):
-    """
-        Will adjust the torso bounding columns by apportioning up the smaller width, (larger width stays the same)
-    """
-    ADJUST_PCT = 0.8
-    w1 = tec1 - tbc1
-    w2 = tec2 - tbc2
-    
-    diff_adj = abs(w1-w2) * ADJUST_PCT // 2
-    if w1 > w2:
-        return tbc1, tec1, tbc2-diff_adj, tec2+diff_adj
-    else:
-        return tbc1-diff_adj, tec1+diff_adj, tbc2, tec2
-    
-
 def create_zones16(file_images):
     """
         Takes the 16 slice file images and returns the zone rectangles by slice
     """
     crit_point_slices = [0, 8]
-    crit_point_imga_dict = {}
+    crit_point_imga_dict = OrderedDict()
     for slice in crit_point_slices:
         crit_point_imga_dict[slice] = np.asarray(file_images[slice])
     
     crit_point_dict = critical_points(crit_point_imga_dict)
- 
-    c_tbr0, c_tbc0, c_tec0, c_hbr0 = crit_point_dict[0]
-    c_tbr8, c_tbc8, c_tec8, c_hbr8 = crit_point_dict[8]
+
+    # tbr and hbr are the same across slices 
+    c_tbr, c_tbc0, c_tec0, c_hbr = crit_point_dict[0]
+    _, c_tbc8, c_tec8, _ = crit_point_dict[8]
+
+    #c_tbr = int(0.8 * max(c_tbr0, c_tbr8) + 0.2 * min(c_tbr0, c_tbr8))
+    #c_hbr = (c_hbr0 + c_hbr8) // 2
     
-    c_tbc0a, c_tec0a, c_tbc8a, c_tec8a = adjust_torso_bounds(c_tbc0, c_tec0, c_tbc8, c_tec8)
+    #c_tbc0a, c_tec0a, c_tbc8a, c_tec8a = adjust_torso_bounds(c_tbc0, c_tec0, c_tbc8, c_tec8)    
     
     crit_point_slices_q = [4, 12]
-    crit_point_imga_dict_q = {}
+    crit_point_imga_dict_q = OrderedDict()
     for slice in crit_point_slices_q:
         crit_point_imga_dict_q[slice] = np.asarray(file_images[slice])
     
     # Difference of calculated midpoint from actual midpoint (do I even need this)?
+    #TODO: still need this? Is there a better way to calc?
     rows, columns = 660, 512 # TODO: parameterize
     x_rot_adj = (columns // 2) - ((c_tbc0 + c_tec0) // 2)
     print(f"x_rot_adj: {x_rot_adj}")
-    print(f"tbc diff: {c_tbc8-c_tbc0}")
-    print(f"tec diff: {c_tec8-c_tec0}")
+    #print(f"tbc diff: {c_tbc8-c_tbc0}")
+    #print(f"tec diff: {c_tec8-c_tec0}")
 
-    crit_point_dict_q = critical_points_quarters(crit_point_imga_dict_q, c_tbr0)
+    crit_point_dict_q = critical_points_quarters(crit_point_imga_dict_q, c_tbr)
 
     c_tbc4, c_tec4, c_ctr4 = crit_point_dict_q[4]
     c_tbc12, c_tec12, c_ctr12 = crit_point_dict_q[12]
@@ -466,9 +469,6 @@ def create_zones16(file_images):
     z_rot_adj = c_ctr12 - c_ctr4
     print(f"z_rot_adj: {z_rot_adj}")
     
-    c_tbr = int(0.8 * max(c_tbr0, c_tbr8) + 0.2 * min(c_tbr0, c_tbr8))
-    c_hbr = (c_hbr0 + c_hbr8) // 2
-
     # 16 slices, 17 zones (to keep zone indices equal to zone diagram adding one more. 0 index not used), 
     # 4 points for rectangle of zone
     #        8
@@ -482,33 +482,33 @@ def create_zones16(file_images):
     #        0
     zones = np.zeros((16, 18, 4), dtype=np.uint16)
         
-    zones[0][5], zones[0][6], zones[0][7], zones[0][8], zones[0][9], zones[0][10] = torso_rects(c_tbr, c_tbc0a, c_tec0a, c_hbr, rows)
+    zones[0][5], zones[0][6], zones[0][7], zones[0][8], zones[0][9], zones[0][10] = torso_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows)
 
-    zones[1][5], zones[1][6], zones[1][7], zones[1][8], zones[1][9], zones[1][10] = torso_rects(c_tbr, c_tbc0a, c_tec0a, c_hbr, rows,
+    zones[1][5], zones[1][6], zones[1][7], zones[1][8], zones[1][9], zones[1][10] = torso_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows,
                                                                                                 slice_cursor=-1, slice=1, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
-    zones[2][5], zones[2][6], zones[2][7], zones[2][8], zones[2][9], zones[2][10] = torso_rects(c_tbr, c_tbc0a, c_tec0a, c_hbr, rows,
+    zones[2][5], zones[2][6], zones[2][7], zones[2][8], zones[2][9], zones[2][10] = torso_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows,
                                                                                                 slice_cursor=-2, slice=2, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
     zones[3][7], zones[3][10] = torso_rects_side(c_tbr, c_tbc4, c_tec4, c_hbr)
     zones[4][7], zones[4][10] = torso_rects_side(c_tbr, c_tbc4, c_tec4, c_hbr)
     zones[5][7], zones[5][10] = torso_rects_side(c_tbr, c_tbc4, c_tec4, c_hbr)
     
-    zones[6][17], zones[6][7], zones[6][6], zones[6][10], zones[6][9], zones[6][8] = torso_rects(c_tbr, c_tbc8a, c_tec8a, c_hbr, rows,
+    zones[6][17], zones[6][7], zones[6][6], zones[6][10], zones[6][9], zones[6][8] = torso_rects(c_tbr, c_tbc8, c_tec8, c_hbr, rows,
                                                                                                 slice_cursor=2, slice=6, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj)
-    zones[7][17], zones[7][7], zones[7][6], zones[7][10], zones[7][9], zones[7][8] = torso_rects(c_tbr, c_tbc8a, c_tec8a, c_hbr, rows,
+    zones[7][17], zones[7][7], zones[7][6], zones[7][10], zones[7][9], zones[7][8] = torso_rects(c_tbr, c_tbc8, c_tec8, c_hbr, rows,
                                                                                                 slice_cursor=1, slice=7, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj)    
-    zones[8][17], zones[8][7], zones[8][6], zones[8][10], zones[8][9], zones[8][8] = torso_rects(c_tbr, c_tbc8a, c_tec8a, c_hbr, rows, slice=8)
+    zones[8][17], zones[8][7], zones[8][6], zones[8][10], zones[8][9], zones[8][8] = torso_rects(c_tbr, c_tbc8, c_tec8, c_hbr, rows, slice=8)
 
-    zones[9][17], zones[9][7], zones[9][6], zones[9][10], zones[9][9], zones[9][8] = torso_rects(c_tbr, c_tbc8a, c_tec8a, c_hbr, rows,
+    zones[9][17], zones[9][7], zones[9][6], zones[9][10], zones[9][9], zones[9][8] = torso_rects(c_tbr, c_tbc8, c_tec8, c_hbr, rows,
                                                                                                  slice_cursor=-1, slice=9, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj)
-    zones[10][17], zones[10][7], zones[10][6], zones[10][10], zones[10][9], zones[10][8] = torso_rects(c_tbr, c_tbc8a, c_tec8a, c_hbr, rows, 
+    zones[10][17], zones[10][7], zones[10][6], zones[10][10], zones[10][9], zones[10][8] = torso_rects(c_tbr, c_tbc8, c_tec8, c_hbr, rows, 
                                                                                                        slice_cursor=-2, slice=10, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj)
     zones[11][6], zones[11][8] = torso_rects_side(c_tbr, c_tbc12, c_tec12, c_hbr)
     zones[12][6], zones[12][8] = torso_rects_side(c_tbr, c_tbc12, c_tec12, c_hbr)
     zones[13][6], zones[13][8] = torso_rects_side(c_tbr, c_tbc12, c_tec12, c_hbr)
     
-    zones[14][5], zones[14][6], zones[14][7], zones[14][8], zones[14][9], zones[14][10] = torso_rects(c_tbr, c_tbc0a, c_tec0a, c_hbr, rows,
+    zones[14][5], zones[14][6], zones[14][7], zones[14][8], zones[14][9], zones[14][10] = torso_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows,
                                                                                                 slice_cursor=2, slice=14, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
-    zones[15][5], zones[15][6], zones[15][7], zones[15][8], zones[15][9], zones[15][10] = torso_rects(c_tbr, c_tbc0a, c_tec0a, c_hbr, rows,
+    zones[15][5], zones[15][6], zones[15][7], zones[15][8], zones[15][9], zones[15][10] = torso_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows,
                                                                                                 slice_cursor=1, slice=15, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
     return zones     
 
@@ -541,10 +541,10 @@ def draw_zones(file=None, slices=range(16), src_dir='train', save_file='zone_tes
     if animation:
         util.animate_images(file_images)        
 
-def points_file(src_dir='train'):
+def points_file(src_dir='train', file='points.csv'):
     import csv
     files = shuffled_files(src_dir)
-    with open('points.csv', 'w', newline='') as csvfile:
+    with open(file, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile, delimiter=',')
         for f in files:
             print(f"Reading file {f}...")
