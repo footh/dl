@@ -161,7 +161,7 @@ def animate_images(images):
         plot_images.append(np.asarray(images[i]))
     plot_images = np.asarray(plot_images)
 
-    fig = plt.figure(figsize = (6,6))
+    fig = plt.figure(figsize = (7,7))
     ax = fig.add_subplot(111)
     def animate(i):
         im = ax.imshow(plot_images[i])

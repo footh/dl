@@ -130,10 +130,11 @@ def binary_peaks(img, peak_count, hits=20, min_size=10, min_distance=5, down=Tru
         if peak_hits == hits:
             return peak_hit_row
 
-def bounding_columns(img, row, up=10, down=10, outliers=5):
+def bounding_columns(img, row, up=10, down=10, outliers=5, meth='mean'):
     """
         Find bounding columns of 'row' by looking 'up' and 'down' rows, throwing out top and bottom
-        'outliers' values and averaging the rest. (Note that 'up' is subtracting rows because image starts from top.)
+        'outliers' values and using 'meth' (default np.mean) on the rest. (Note that 'up' is subtracting rows 
+        because image starts from top.)
     """
     row_arr, index_arr = np.where(img[row-up:row+down])
     begins = []
@@ -145,8 +146,12 @@ def bounding_columns(img, row, up=10, down=10, outliers=5):
         
     begins.sort()
     ends.sort()
-    begin = np.mean(begins[outliers:-outliers])
-    end = np.mean(ends[outliers:-outliers])
+    if meth == 'max':
+        begin = np.min(begins[outliers:-outliers])
+        end = np.max(ends[outliers:-outliers])
+    else:
+        begin = np.mean(begins[outliers:-outliers])
+        end = np.mean(ends[outliers:-outliers])
     
     return int(begin), int(end) + 1
 
@@ -319,7 +324,8 @@ def critical_points_quarters(imga_dict, torso_begin_row):
             transformed_img = run_transforms(imgt, transforms)
             
             mod_tbr = torso_begin_row - midrow
-            torso_begin_column, torso_end_column = bounding_columns(transformed_img, mod_tbr, up=mod_tbr, down=5)
+            torso_begin_column, torso_end_column = bounding_columns(transformed_img, mod_tbr, 
+                                                                    up=mod_tbr, down=5, outliers=1, meth='max')
             
             # This is a cleaner center that won't be skewed by unusual girth
             center_tbc, center_tec = bounding_columns(transformed_img, mod_tbr, up=10, down=5, outliers=3)
@@ -336,6 +342,12 @@ def critical_points_quarters(imga_dict, torso_begin_row):
         point_dict[slice] = [torso_begin_column, torso_end_column, center]
         
     return point_dict
+
+def valid_rect(x1, y1, x2, y2):
+     if x1 >= x2 or y1 >= y2:
+         return [0,0,0,0]
+     else:
+        return [x1, y1, x2, y2]
 
 def torso_rects(tbr, tbc, tec, hbr, rows, slice_cursor=0, slice=0, x_rot_adj=0, z_rot_adj=0):
     #TODO: pass in an optional config for constants so I don't have to constantly stop python when I want to
@@ -361,31 +373,37 @@ def torso_rects(tbr, tbc, tec, hbr, rows, slice_cursor=0, slice=0, x_rot_adj=0, 
     # Upper torso column movement is a linear adjustment
     # TODO: this may need a gaussian too?
     UPPER_TORSO_SLICE_ADJ = 0.1
-    slice_col_adj1 = int(slice_cursor * torso_width * UPPER_TORSO_SLICE_ADJ)
+    slice_col_adj1 = int(slice_cursor * torso_width * UPPER_TORSO_SLICE_ADJ) + (slice_cursor * 11)
 
-    # Lower torso column movement is determined by a gaussian with these parameters (to account from scanner
+    # Lower torso column movement is determined by a gaussian with these parameters (to account for scanner
     # accelerating then decelerating as it starts and stops).
-    G_HEIGHT = 0.12
-    G_SIGMA = 2.2
-    lower_torso_slice_adj = gaussian_fit(slice, G_HEIGHT, 8, G_SIGMA) 
-    slice_col_adj2 = int(round(slice_cursor * torso_width * lower_torso_slice_adj))
+    G_HEIGHT = 0.1
+    G_SIGMA = 5.0
+    lower_torso_slice_adj = gaussian_fit(slice, G_HEIGHT, 8, G_SIGMA)
+    slice_col_adj2 = int(round(slice_cursor * torso_width * lower_torso_slice_adj)) + (slice_cursor * 11)
     #print(f"slice, adj: {slice}, {lower_torso_slice_adj}")
     #print(f"slice_cursor: {slice_cursor}")
     #print(f"slice_col_adj1: {slice_col_adj1}")
-    #print(f"slice_col_adj2: {slice_col_adj2}")    
+    #print(f"slice_col_adj2: {slice_col_adj2}")
     
     TORSO_PORTIONS = 15
     UPPER_TORSO_PORTION = 4
-    LOWER_TORSO_PORTION = 11
+    LOWER_TORSO_PORTION = 10
     torso_height = tbr - hbr
     torso_unit = torso_height // TORSO_PORTIONS
-
+    
     torso_split_row = hbr + UPPER_TORSO_PORTION * torso_unit
     waist_split_row = hbr + LOWER_TORSO_PORTION * torso_unit
+    #TODO: Don't like this slice hardcoding
+    if slice in [3,4,5,11,12,13]:
+        torso_rect = valid_rect(tbc_adj, hbr+20, tec_adj, waist_split_row) #TODO: better then +20
+        waist_rect = valid_rect(tbc_adj, waist_split_row, tec_adj, tbr+0)
+        return torso_rect, waist_rect
+
     lower_torso_split_column = (torso_width // 2 + tbc_adj) + slice_col_adj1                          
 
     WAIST_PORTIONS = 15
-    SIDE_WAIST_PORTION = 4    
+    SIDE_WAIST_PORTION = 4
     side_waist_size = torso_width // WAIST_PORTIONS * SIDE_WAIST_PORTION
     waist_split_column1 = side_waist_size + tbc_adj + slice_col_adj2
     waist_split_column2 = torso_width - side_waist_size + tbc_adj + slice_col_adj2
@@ -398,32 +416,19 @@ def torso_rects(tbr, tbc, tec, hbr, rows, slice_cursor=0, slice=0, x_rot_adj=0, 
     #TODO: fine tune this
     utl_adj = slice_col_adj1 if slice_cursor > 0 else 0
     utr_adj = slice_col_adj1 if slice_cursor < 0 else 0
-    upper_torso_rect = [tbc_adj + utl_adj, hbr, tec_adj + utr_adj, torso_split_row]
-    left_torso_rect = [tbc_adj, torso_split_row, lower_torso_split_column, waist_split_row]
-    right_torso_rect = [lower_torso_split_column, torso_split_row, tec_adj, waist_split_row]
+    upper_torso_rect = valid_rect(tbc_adj + utl_adj, hbr, tec_adj + utr_adj, torso_split_row)
+    left_torso_rect = valid_rect(tbc_adj, torso_split_row, min(tec_adj, lower_torso_split_column), waist_split_row)
+    right_torso_rect = valid_rect(max(tbc_adj, lower_torso_split_column), torso_split_row, tec_adj, waist_split_row)
     
     #TODO: use leg_portion, not +0
     leg_size = rows - tbr
     leg_portion = leg_size // 7
     print(f"leg_portion: {leg_portion}")
-    left_waist_rect = [tbc_adj, waist_split_row, waist_split_column1, tbr+0]
-    mid_waist_rect = [waist_split_column1, waist_split_row, waist_split_column2, tbr+0]
-    right_waist_rect = [waist_split_column2, waist_split_row, tec_adj, tbr+0]
+    left_waist_rect = valid_rect(tbc_adj, waist_split_row, max(tbc_adj, waist_split_column1), tbr+0)
+    mid_waist_rect = valid_rect(max(tbc_adj, waist_split_column1), waist_split_row, min(tec_adj, waist_split_column2), tbr+0)
+    right_waist_rect = valid_rect(min(tec_adj, waist_split_column2), waist_split_row, tec_adj, tbr+0)
     
     return upper_torso_rect, left_torso_rect, right_torso_rect, left_waist_rect, mid_waist_rect, right_waist_rect
-
-def torso_rects_side(tbr, tbc, tec, hbr):
-    TORSO_PORTIONS = 15
-    TORSO_PORTION = 11
-    torso_height = tbr - hbr
-    torso_unit = torso_height // TORSO_PORTIONS
-    
-    waist_split_row = hbr + TORSO_PORTION * torso_unit
-        
-    torso_rect = [tbc, hbr+20, tec, waist_split_row] #TODO: better then +20
-    waist_rect = [tbc, waist_split_row, tec, tbr+0]
-    
-    return torso_rect, waist_rect
 
 def create_zones16(file_images):
     """
@@ -488,9 +493,11 @@ def create_zones16(file_images):
                                                                                                 slice_cursor=-1, slice=1, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
     zones[2][5], zones[2][6], zones[2][7], zones[2][8], zones[2][9], zones[2][10] = torso_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows,
                                                                                                 slice_cursor=-2, slice=2, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
-    zones[3][7], zones[3][10] = torso_rects_side(c_tbr, c_tbc4, c_tec4, c_hbr)
-    zones[4][7], zones[4][10] = torso_rects_side(c_tbr, c_tbc4, c_tec4, c_hbr)
-    zones[5][7], zones[5][10] = torso_rects_side(c_tbr, c_tbc4, c_tec4, c_hbr)
+    zones[3][7], zones[3][10] = torso_rects(c_tbr, c_tbc4, c_tec4, c_hbr, rows,
+                                            slice_cursor=-1, slice=3, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
+    zones[4][7], zones[4][10] = torso_rects(c_tbr, c_tbc4, c_tec4, c_hbr, rows, slice=4)
+    zones[5][7], zones[5][10] = torso_rects(c_tbr, c_tbc4, c_tec4, c_hbr, rows,
+                                            slice_cursor=1, slice=5, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
     
     zones[6][17], zones[6][7], zones[6][6], zones[6][10], zones[6][9], zones[6][8] = torso_rects(c_tbr, c_tbc8, c_tec8, c_hbr, rows,
                                                                                                 slice_cursor=2, slice=6, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj)
@@ -502,9 +509,11 @@ def create_zones16(file_images):
                                                                                                  slice_cursor=-1, slice=9, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj)
     zones[10][17], zones[10][7], zones[10][6], zones[10][10], zones[10][9], zones[10][8] = torso_rects(c_tbr, c_tbc8, c_tec8, c_hbr, rows, 
                                                                                                        slice_cursor=-2, slice=10, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj)
-    zones[11][6], zones[11][8] = torso_rects_side(c_tbr, c_tbc12, c_tec12, c_hbr)
-    zones[12][6], zones[12][8] = torso_rects_side(c_tbr, c_tbc12, c_tec12, c_hbr)
-    zones[13][6], zones[13][8] = torso_rects_side(c_tbr, c_tbc12, c_tec12, c_hbr)
+    zones[11][6], zones[11][8] = torso_rects(c_tbr, c_tbc12, c_tec12, c_hbr, rows,
+                                             slice_cursor=-1, slice=11, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
+    zones[12][6], zones[12][8] = torso_rects(c_tbr, c_tbc12, c_tec12, c_hbr, rows, slice=12)
+    zones[13][6], zones[13][8] = torso_rects(c_tbr, c_tbc12, c_tec12, c_hbr, rows,
+                                             slice_cursor=1, slice=13, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)                                             
     
     zones[14][5], zones[14][6], zones[14][7], zones[14][8], zones[14][9], zones[14][10] = torso_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows,
                                                                                                 slice_cursor=2, slice=14, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
