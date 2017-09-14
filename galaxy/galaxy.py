@@ -91,8 +91,8 @@ class Galaxy():
         """
         
         #load vgg16 without dense layer and with theano dim ordering
-        #base_model = VGG16(weights = 'imagenet', include_top = False, input_shape = (3,224,224))
-        base_model = VGG16(weights = 'imagenet', include_top = False, input_shape = (224,224,3))
+        base_model = VGG16(weights = 'imagenet', include_top = False, input_shape = (3,224,224))
+        #base_model = VGG16(weights = 'imagenet', include_top = False, input_shape = (224,224,3))
         
         #number of classes in your dataset e.g. 20
         num_classes = 37
@@ -106,7 +106,7 @@ class Galaxy():
         
         self.model = Model(inputs=base_model.input, outputs=predictions)
         
-        #model.summary()
+        self.model.summary()
         
     def compile(self, lr=0.001):
         """
@@ -202,7 +202,7 @@ def evaluate_galaxy(batch_size=100, weights_file=None):
     loss = galaxy.evaluate(test_batches, steps=steps, weights_file=weights_file_path)
     print(loss)
     
-if run == 'train':
-    train_galaxy(version=param)
-else:
-    evaluate_galaxy(weights_file=param)
+# if run == 'train':
+#     train_galaxy(version=param)
+# else:
+#     evaluate_galaxy(weights_file=param)
