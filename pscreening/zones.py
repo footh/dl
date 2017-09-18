@@ -348,8 +348,15 @@ def valid_rect(x1, y1, x2, y2):
          return [0,0,0,0]
      else:
         return [x1, y1, x2, y2]
+    
+def z_depth_adjustment(z_depth):
+    if z_depth < 70: return 0
+    SLOPE = 0.1
+    INTERCEPT = -3.0
+    
+    return int(round(SLOPE * z_depth + INTERCEPT))
 
-def torso_rects(tbr, tbc, tec, hbr, rows, slice_cursor=0, slice=0, x_rot_adj=0, z_rot_adj=0):
+def torso_rects(tbr, tbc, tec, hbr, rows, slice_cursor=0, slice=0, x_rot_adj=0, z_rot_adj=0, z_depth=0):
     #TODO: pass in an optional config for constants so I don't have to constantly stop python when I want to
     # tweak a parameter during fine-tuning
     
@@ -373,18 +380,27 @@ def torso_rects(tbr, tbc, tec, hbr, rows, slice_cursor=0, slice=0, x_rot_adj=0, 
     # Upper torso column movement is a linear adjustment
     # TODO: this may need a gaussian too?
     UPPER_TORSO_SLICE_ADJ = 0.1
-    slice_col_adj1 = int(slice_cursor * torso_width * UPPER_TORSO_SLICE_ADJ) + (slice_cursor * 11)
+    zd_adj = z_depth_adjustment(z_depth)
+    print(f"z_depth_adjustment:  {zd_adj}")
+    slice_col_adj1 = int(slice_cursor * torso_width * UPPER_TORSO_SLICE_ADJ) + (slice_cursor * zd_adj)
 
     # Lower torso column movement is determined by a gaussian with these parameters (to account for scanner
     # accelerating then decelerating as it starts and stops).
     G_HEIGHT = 0.1
     G_SIGMA = 5.0
     lower_torso_slice_adj = gaussian_fit(slice, G_HEIGHT, 8, G_SIGMA)
-    slice_col_adj2 = int(round(slice_cursor * torso_width * lower_torso_slice_adj)) + (slice_cursor * 11)
+    slice_col_adj2 = int(round(slice_cursor * torso_width * lower_torso_slice_adj)) + (slice_cursor * zd_adj)
     #print(f"slice, adj: {slice}, {lower_torso_slice_adj}")
     #print(f"slice_cursor: {slice_cursor}")
     #print(f"slice_col_adj1: {slice_col_adj1}")
     #print(f"slice_col_adj2: {slice_col_adj2}")
+   
+    #TODO: use leg_portion, not +0
+    LEG_PORTIONS = 15
+    WAIST_EXT_PORTION = 2
+    leg_size = rows - tbr
+    leg_portion = leg_size // LEG_PORTIONS
+    print(f"leg_portion: {leg_portion}") 
     
     TORSO_PORTIONS = 15
     UPPER_TORSO_PORTION = 4
@@ -397,7 +413,7 @@ def torso_rects(tbr, tbc, tec, hbr, rows, slice_cursor=0, slice=0, x_rot_adj=0, 
     #TODO: Don't like this slice hardcoding
     if slice in [3,4,5,11,12,13]:
         torso_rect = valid_rect(tbc_adj, hbr+20, tec_adj, waist_split_row) #TODO: better then +20
-        waist_rect = valid_rect(tbc_adj, waist_split_row, tec_adj, tbr+0)
+        waist_rect = valid_rect(tbc_adj, waist_split_row, tec_adj, tbr + WAIST_EXT_PORTION*leg_portion)
         return torso_rect, waist_rect
 
     lower_torso_split_column = (torso_width // 2 + tbc_adj) + slice_col_adj1                          
@@ -420,13 +436,9 @@ def torso_rects(tbr, tbc, tec, hbr, rows, slice_cursor=0, slice=0, x_rot_adj=0, 
     left_torso_rect = valid_rect(tbc_adj, torso_split_row, min(tec_adj, lower_torso_split_column), waist_split_row)
     right_torso_rect = valid_rect(max(tbc_adj, lower_torso_split_column), torso_split_row, tec_adj, waist_split_row)
     
-    #TODO: use leg_portion, not +0
-    leg_size = rows - tbr
-    leg_portion = leg_size // 7
-    print(f"leg_portion: {leg_portion}")
-    left_waist_rect = valid_rect(tbc_adj, waist_split_row, max(tbc_adj, waist_split_column1), tbr+0)
-    mid_waist_rect = valid_rect(max(tbc_adj, waist_split_column1), waist_split_row, min(tec_adj, waist_split_column2), tbr+0)
-    right_waist_rect = valid_rect(min(tec_adj, waist_split_column2), waist_split_row, tec_adj, tbr+0)
+    left_waist_rect = valid_rect(tbc_adj, waist_split_row, max(tbc_adj, waist_split_column1), tbr + WAIST_EXT_PORTION*leg_portion)
+    mid_waist_rect = valid_rect(max(tbc_adj, waist_split_column1), waist_split_row, min(tec_adj, waist_split_column2), tbr + WAIST_EXT_PORTION*leg_portion)
+    right_waist_rect = valid_rect(min(tec_adj, waist_split_column2), waist_split_row, tec_adj, tbr + WAIST_EXT_PORTION*leg_portion)
     
     return upper_torso_rect, left_torso_rect, right_torso_rect, left_waist_rect, mid_waist_rect, right_waist_rect
 
@@ -441,7 +453,7 @@ def create_zones16(file_images):
     
     crit_point_dict = critical_points(crit_point_imga_dict)
 
-    # tbr and hbr are the same across slices 
+    # tbr and hbr are the same across slices
     c_tbr, c_tbc0, c_tec0, c_hbr = crit_point_dict[0]
     _, c_tbc8, c_tec8, _ = crit_point_dict[8]
 
@@ -485,14 +497,14 @@ def create_zones16(file_images):
     #   2         14
     #     1     15
     #        0
-    zones = np.zeros((16, 18, 4), dtype=np.uint16)
+    zones = np.zeros((16, 18, 4), dtype=np.int16)
         
     zones[0][5], zones[0][6], zones[0][7], zones[0][8], zones[0][9], zones[0][10] = torso_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows)
 
     zones[1][5], zones[1][6], zones[1][7], zones[1][8], zones[1][9], zones[1][10] = torso_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows,
-                                                                                                slice_cursor=-1, slice=1, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
+                                                                                                slice_cursor=-1, slice=1, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj, z_depth=z_depth)
     zones[2][5], zones[2][6], zones[2][7], zones[2][8], zones[2][9], zones[2][10] = torso_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows,
-                                                                                                slice_cursor=-2, slice=2, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
+                                                                                                slice_cursor=-2, slice=2, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj, z_depth=z_depth)
     zones[3][7], zones[3][10] = torso_rects(c_tbr, c_tbc4, c_tec4, c_hbr, rows,
                                             slice_cursor=-1, slice=3, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
     zones[4][7], zones[4][10] = torso_rects(c_tbr, c_tbc4, c_tec4, c_hbr, rows, slice=4)
@@ -500,15 +512,15 @@ def create_zones16(file_images):
                                             slice_cursor=1, slice=5, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
     
     zones[6][17], zones[6][7], zones[6][6], zones[6][10], zones[6][9], zones[6][8] = torso_rects(c_tbr, c_tbc8, c_tec8, c_hbr, rows,
-                                                                                                slice_cursor=2, slice=6, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj)
+                                                                                                slice_cursor=2, slice=6, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj, z_depth=z_depth)
     zones[7][17], zones[7][7], zones[7][6], zones[7][10], zones[7][9], zones[7][8] = torso_rects(c_tbr, c_tbc8, c_tec8, c_hbr, rows,
-                                                                                                slice_cursor=1, slice=7, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj)    
+                                                                                                slice_cursor=1, slice=7, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj, z_depth=z_depth)    
     zones[8][17], zones[8][7], zones[8][6], zones[8][10], zones[8][9], zones[8][8] = torso_rects(c_tbr, c_tbc8, c_tec8, c_hbr, rows, slice=8)
 
     zones[9][17], zones[9][7], zones[9][6], zones[9][10], zones[9][9], zones[9][8] = torso_rects(c_tbr, c_tbc8, c_tec8, c_hbr, rows,
-                                                                                                 slice_cursor=-1, slice=9, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj)
+                                                                                                 slice_cursor=-1, slice=9, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj, z_depth=z_depth)
     zones[10][17], zones[10][7], zones[10][6], zones[10][10], zones[10][9], zones[10][8] = torso_rects(c_tbr, c_tbc8, c_tec8, c_hbr, rows, 
-                                                                                                       slice_cursor=-2, slice=10, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj)
+                                                                                                       slice_cursor=-2, slice=10, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj, z_depth=z_depth)
     zones[11][6], zones[11][8] = torso_rects(c_tbr, c_tbc12, c_tec12, c_hbr, rows,
                                              slice_cursor=-1, slice=11, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
     zones[12][6], zones[12][8] = torso_rects(c_tbr, c_tbc12, c_tec12, c_hbr, rows, slice=12)
@@ -516,12 +528,12 @@ def create_zones16(file_images):
                                              slice_cursor=1, slice=13, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)                                             
     
     zones[14][5], zones[14][6], zones[14][7], zones[14][8], zones[14][9], zones[14][10] = torso_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows,
-                                                                                                slice_cursor=2, slice=14, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
+                                                                                                slice_cursor=2, slice=14, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj, z_depth=z_depth)
     zones[15][5], zones[15][6], zones[15][7], zones[15][8], zones[15][9], zones[15][10] = torso_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows,
-                                                                                                slice_cursor=1, slice=15, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
+                                                                                                slice_cursor=1, slice=15, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj, z_depth=z_depth)
     return zones     
 
-def draw_zones(file=None, slices=range(16), src_dir='train', save_file='zone_test', animation=False):
+def draw_zones(file=None, slices=range(16), src_dir='train', save_file='zone_test', animation=False, padding=False):
     # Read first file from shuffled list
     if file is None:
         file = shuffled_files(src_dir)[0]
@@ -529,7 +541,10 @@ def draw_zones(file=None, slices=range(16), src_dir='train', save_file='zone_tes
 
     file_images = util.read_data(file, as_images=True)
 
-    zones = create_zones16(file_images)    
+    zones = create_zones16(file_images)
+    
+    if padding:
+        zones_config.apply_padding(zones) 
 
     for slice in slices:
         img = file_images[slice]
@@ -550,18 +565,33 @@ def draw_zones(file=None, slices=range(16), src_dir='train', save_file='zone_tes
     if animation:
         util.animate_images(file_images)        
 
-def points_file(src_dir='train', file='points.csv'):
+def points_file(src_dir='train', file='points.csv', padding=False):
     import csv
     files = shuffled_files(src_dir)
     with open(file, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile, delimiter=',')
+        f_count = 0
         for f in files:
+            f_count += 1
             print(f"Reading file {f}...")
             file_images = util.read_data(f, as_images=True)
             print(f"Creating zones...")
             zones = create_zones16(file_images)
+            if padding:
+                zones_config.apply_padding(zones)
             print(f"Write record...")
             for i in range(16):
                 row = [[f], [i], list(zones[i][5]), list(zones[i][6]), list(zones[i][7]), list(zones[i][8]), list(zones[i][9]), list(zones[i][10])]
                 row = [val for sublist in row for val in sublist]
                 writer.writerow(row)
+            print(f"Record #{f_count} completed")    
+            
+def read_points_file(file='points-train.csv'):
+    import csv
+    i = 0
+    with open(file, newline='') as csvfile:
+        reader = csv.reader(csvfile, delimiter=',')
+        for row in reader:
+            #w = np.asarray(r[4:][::4],dtype=np.int16) - np.asarray(r[2:][::4],dtype=np.int16)
+            return row
+    
