@@ -102,6 +102,14 @@ def convert_data_img(data):
         
     return file_images
 
+def convert_data(data):
+    file_data = []
+    d = np.transpose(data)
+    for slice in range(d.shape[0]):
+        file_data.append(np.flipud(d[slice]))
+        
+    return file_data
+
 def read_data(infile, as_images=False):
     """Read any of the 4 types of image files, returns a numpy array of the image contents
     """
@@ -136,7 +144,7 @@ def read_data(infile, as_images=False):
         if as_images:
             return convert_data_img(data)
         else:
-            return data
+            return convert_data(data)
     else:
         return real, imag
     
@@ -161,12 +169,19 @@ def animate_images(images):
         plot_images.append(np.asarray(images[i]))
     plot_images = np.asarray(plot_images)
 
+    animate_array(plot_images)
+
+def animate_npy(file):
+    arr = np.load(file)
+    animate_array(arr)
+    
+def animate_array(array):
     fig = plt.figure(figsize = (7,7))
     ax = fig.add_subplot(111)
     def animate(i):
-        im = ax.imshow(plot_images[i])
+        im = ax.imshow(array[i])
         return [im]
-    ani = anim.FuncAnimation(fig, animate, frames=range(0,plot_images.shape[0]), interval=200, blit=True)
+    ani = anim.FuncAnimation(fig, animate, frames=range(0, array.shape[0]), interval=200, blit=True)
     plt.show()
     
  

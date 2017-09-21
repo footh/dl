@@ -24,9 +24,9 @@ def shuffled_files(src_dir):
     """
     
     src_files = os.listdir(src_dir)
+    src_files = [os.path.join(src_dir, file) for file in src_files if os.path.isfile(os.path.join(src_dir, file))]
     total_files = len(src_files)
     print('Found %s files' % total_files)
-    src_files = [os.path.join(src_dir, file) for file in src_files]
     
     return np.random.permutation(src_files)
             

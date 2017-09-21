@@ -581,17 +581,66 @@ def points_file(src_dir='train', file='points.csv', padding=False):
                 zones_config.apply_padding(zones)
             print(f"Write record...")
             for i in range(16):
-                row = [[f], [i], list(zones[i][5]), list(zones[i][6]), list(zones[i][7]), list(zones[i][8]), list(zones[i][9]), list(zones[i][10])]
+                row = [[f], [i], list(zones[i][5]), list(zones[i][6]), list(zones[i][7]), list(zones[i][8]), list(zones[i][9]), list(zones[i][10]), list(zones[i][17])]
                 row = [val for sublist in row for val in sublist]
                 writer.writerow(row)
             print(f"Record #{f_count} completed")    
             
-def read_points_file(file='points-train.csv'):
+def max_zones_dict(file='points-train.csv'):
     import csv
-    i = 0
     with open(file, newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')
+        
+        max_zones_dict = {}
+        max_zones = np.zeros((6,), dtype=np.int16)
+        max_w = np.zeros((6,), dtype=np.int16)
+        max_h = np.zeros((6,), dtype=np.int16)
         for row in reader:
-            #w = np.asarray(r[4:][::4],dtype=np.int16) - np.asarray(r[2:][::4],dtype=np.int16)
-            return row
+            w = np.asarray(row[4:][::4], dtype=np.int16) - np.asarray(row[2:][::4], dtype=np.int16)
+            h = np.asarray(row[5:][::4], dtype=np.int16) - np.asarray(row[3:][::4], dtype=np.int16)
+            max_w = np.maximum(max_w, w)
+            max_h = np.maximum(max_h, h)
+            areas = w*h
+            for i, a in enumerate(areas):
+                if a > max_zones[i]:
+                    max_zones[i] = a
+                    max_zones_dict[i+5] = [row[0], row[1], a, (w[i], h[i])]
+                
+        return max_zones_dict, max_w, max_h
     
+SLICE_WIDTH = 280
+SLICE_HEIGHT=  160
+
+def extract_zones(file='points-train.csv', dest_dir='train', zones=[5,6,7,8,9,10]):
+    import csv
+    with open(file, newline='') as csvfile:
+        reader = csv.reader(csvfile, delimiter=',')
+
+        cur_file = ''
+        cur_id = ''
+        file_data = None
+        slice_data = None
+        #cnt = 0
+        for row in reader:
+            if cur_file != row[0]:
+                if slice_data is not None:
+                    for i in range(len(zones)):
+                        np.save(os.path.join(dest_dir, str(zones[i]), cur_id), slice_data[i])
+                cur_file = row[0]
+                file_data = util.read_data(cur_file)
+                cur_id =  cur_file.split('/')[1].split('.')[0]
+                slice_data = np.zeros((len(zones), 16, SLICE_HEIGHT, SLICE_WIDTH))
+                        
+            for i in range(len(zones)):
+                rb = int(row[3+4*i])
+                re = int(row[5+4*i])
+                cb = int(row[2+4*i])
+                ce = int(row[4+4*i])
+                slice_data[i][int(row[1])][0:re-rb,0:ce-cb] = np.asarray(file_data[int(row[1])][rb:re,cb:ce])
+            
+            #cnt += 1
+            #print(f"cnt: {cnt}")
+            #if cnt > 32: break 
+        
+    
+        
