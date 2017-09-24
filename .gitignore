@@ -12,3 +12,4 @@ pscreening/test
 .project
 .pydevproject
 .settings
+**/.ipynb_checkpoints

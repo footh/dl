@@ -157,6 +157,13 @@ def get_zones(id, label_dict=d):
         label_dict = label_dict()
         
     return np.where(label_dict[id])[0] + 1
+
+def write_label_files(labels):
+    if labels is not None:
+        da = np.asarray([v for v in d.values()])
+        for l in labels:
+            break
+            
     
 def setup_data(src_dir, label_file, numValid=None, numTest=None, ext='aps'):
     """

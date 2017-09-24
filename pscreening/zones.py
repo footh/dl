@@ -611,7 +611,7 @@ def max_zones_dict(file='points-train.csv'):
 SLICE_WIDTH = 280
 SLICE_HEIGHT=  160
 
-def extract_zones(file='points-train.csv', dest_dir='train', zones=[5,6,7,8,9,10]):
+def extract_zones(file='points-train.csv', dest_dir='train', zones=[5,6,7,8,9,10,17]):
     import csv
     with open(file, newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')
@@ -620,7 +620,7 @@ def extract_zones(file='points-train.csv', dest_dir='train', zones=[5,6,7,8,9,10
         cur_id = ''
         file_data = None
         slice_data = None
-        #cnt = 0
+        cnt = 0
         for row in reader:
             if cur_file != row[0]:
                 if slice_data is not None:
@@ -638,8 +638,8 @@ def extract_zones(file='points-train.csv', dest_dir='train', zones=[5,6,7,8,9,10
                 ce = int(row[4+4*i])
                 slice_data[i][int(row[1])][0:re-rb,0:ce-cb] = np.asarray(file_data[int(row[1])][rb:re,cb:ce])
             
-            #cnt += 1
-            #print(f"cnt: {cnt}")
+            cnt += 1
+            print(f"cnt: {cnt}")
             #if cnt > 32: break 
         
     

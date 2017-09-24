@@ -169,19 +169,21 @@ def animate_images(images):
         plot_images.append(np.asarray(images[i]))
     plot_images = np.asarray(plot_images)
 
-    animate_array(plot_images)
+    return animate_array(plot_images)
 
-def animate_npy(file):
+def animate_npy(file, show=True):
     arr = np.load(file)
-    animate_array(arr)
+    return animate_array(arr, show=show)
     
-def animate_array(array):
+def animate_array(array, show=True):
     fig = plt.figure(figsize = (7,7))
     ax = fig.add_subplot(111)
     def animate(i):
         im = ax.imshow(array[i])
         return [im]
-    ani = anim.FuncAnimation(fig, animate, frames=range(0, array.shape[0]), interval=200, blit=True)
-    plt.show()
+    ani = anim.FuncAnimation(fig, animate, frames=range(0, array.shape[0]), interval=400, blit=True)
+    if show:
+        plt.show()
+    else:
+        return ani
     
- 
