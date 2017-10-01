@@ -5,20 +5,19 @@ from keras.models import Model, Sequential
 from keras.layers import Input, Conv2D, Flatten, Dense, Dropout, TimeDistributed, LSTM
 from keras.layers.normalization import BatchNormalization
 from keras import backend as K
-from keras.optimizers import Adam
-
-
-
 
 class PScreening():
-    def __init__(self):
-        self.create()
+    def __init__(self,
+                 input_shape=None):
+        if input_shape is not None:
+            self.create(input_shape=input_shape)
 
-    def create(self):
+    def create(self,
+               input_shape=None):
         """
         """
         # Starting data shape TODO: this will eventually be parameterized
-        full_data_shape = (16, 160, 280, 1)
+        full_data_shape =  input_shape + (1,)
         
         #---------------------
         # Vision model creation for just one frame of the input data. This will be used in the TimeDistributed layer to consume all the frames.

@@ -497,7 +497,7 @@ def create_zones16(file_images):
     #   2         14
     #     1     15
     #        0
-    zones = np.zeros((16, 18, 4), dtype=np.int16)
+    zones = np.zeros((16, 18, 4), dtype=np.int32)
         
     zones[0][5], zones[0][6], zones[0][7], zones[0][8], zones[0][9], zones[0][10] = torso_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows)
 
@@ -586,61 +586,76 @@ def points_file(src_dir='train', file='points.csv', padding=False):
                 writer.writerow(row)
             print(f"Record #{f_count} completed")    
             
-def max_zones_dict(file='points-train.csv'):
+def zones_max_dict(file='points-train.csv', slice_count=16, zones=[5,6,7,8,9,10,17], area_threshold=0, round_up=False):
+    """
+        Returns a dict of zone => 3-tuple of (valid_slices, max_height, max_width)
+    """
     import csv
+    with open(file, newline='') as csvfile:
+        reader = csv.reader(csvfile, delimiter=',')
+        all_rows = np.array(list(reader))
+        zone_rects = np.array(all_rows[:,2:], dtype=np.int32)
+        
+        zones_max = {}
+        for i, z in enumerate(zones):
+           w = zone_rects[:,2+4*i] - zone_rects[:,0+4*i]
+           h = zone_rects[:,3+4*i] - zone_rects[:,1+4*i]
+           
+           # Getting boolean array of areas greater than 'area_threshold'. Reshaping to get valid areas by slice and summing.
+           # The max of the resulting array is the max number of slices needed in the extraction for that zone.
+           a = w * h > area_threshold
+           a = a.reshape(a.shape[0] // slice_count, slice_count)
+           a = np.sum(a, axis=1)
+           
+           h_idx = np.argmax(h)
+           w_idx = np.argmax(w)
+           print(f"zone {z} max h is {all_rows[h_idx][0]}")
+           print(f"zone {z} max w is {all_rows[w_idx][0]}")
+           
+           zones_max[z] = (np.max(a), h[h_idx], w[w_idx])
+        
+        if round_up:
+            import math
+            def roundup10(x):
+                return int(math.ceil(x / 10.0)) * 10
+            
+            for k, v in zones_max.items():
+                zones_max[k] = (v[0], roundup10(v[1]), roundup10(v[2]))
+                           
+        return zones_max
+
+def extract_zones(file='points-train.csv', dest_dir='train', slice_count=16, zones=[5,6,7,8,9,10,17], area_threshold=0):
+    import csv
+    
+    zones_max = zones_max_dict(file=file, slice_count=slice_count, zones=zones, area_threshold=area_threshold, round_up=True)
+    
     with open(file, newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')
         
-        max_zones_dict = {}
-        max_zones = np.zeros((6,), dtype=np.int16)
-        max_w = np.zeros((6,), dtype=np.int16)
-        max_h = np.zeros((6,), dtype=np.int16)
-        for row in reader:
-            w = np.asarray(row[4:][::4], dtype=np.int16) - np.asarray(row[2:][::4], dtype=np.int16)
-            h = np.asarray(row[5:][::4], dtype=np.int16) - np.asarray(row[3:][::4], dtype=np.int16)
-            max_w = np.maximum(max_w, w)
-            max_h = np.maximum(max_h, h)
-            areas = w*h
-            for i, a in enumerate(areas):
-                if a > max_zones[i]:
-                    max_zones[i] = a
-                    max_zones_dict[i+5] = [row[0], row[1], a, (w[i], h[i])]
-                
-        return max_zones_dict, max_w, max_h
-    
-SLICE_WIDTH = 280
-SLICE_HEIGHT=  160
-
-def extract_zones(file='points-train.csv', dest_dir='train', zones=[5,6,7,8,9,10,17]):
-    import csv
-    with open(file, newline='') as csvfile:
-        reader = csv.reader(csvfile, delimiter=',')
-
-        cur_file = ''
-        cur_id = ''
-        file_data = None
-        slice_data = None
+        all_rows = np.array(list(reader))
+        all_rows = all_rows.reshape(all_rows.shape[0] // slice_count, slice_count, all_rows.shape[1])
+        
         cnt = 0
-        for row in reader:
-            if cur_file != row[0]:
-                if slice_data is not None:
-                    for i in range(len(zones)):
-                        np.save(os.path.join(dest_dir, str(zones[i]), cur_id), slice_data[i])
-                cur_file = row[0]
-                file_data = util.read_data(cur_file)
-                cur_id =  cur_file.split('/')[1].split('.')[0]
-                slice_data = np.zeros((len(zones), 16, SLICE_HEIGHT, SLICE_WIDTH))
-                        
+        for row in all_rows:
+            file_data = util.read_data(row[0, 0])
+            id = row[0, 0].split('/')[1].split('.')[0]
             for i in range(len(zones)):
-                rb = int(row[3+4*i])
-                re = int(row[5+4*i])
-                cb = int(row[2+4*i])
-                ce = int(row[4+4*i])
-                slice_data[i][int(row[1])][0:re-rb,0:ce-cb] = np.asarray(file_data[int(row[1])][rb:re,cb:ce])
+                # zone_rects starts as a matrix of all slices + rects. The area is calculated and zone_rects is
+                # collapsed to only the rects that pass the area_threshold
+                zone_rects = np.array(np.hstack((row[:,1:2], row[:,2+4*i:6+4*i])), dtype=np.int32)
+                a = (zone_rects[:,4] - zone_rects[:,2]) * (zone_rects[:,3] - zone_rects[:,1])
+                zone_rects = zone_rects[a > area_threshold]
+                
+                slice_data = np.zeros(zones_max[zones[i]])
+                for j in range(zone_rects.shape[0]):
+                    rb = zone_rects[j,2]
+                    re = zone_rects[j,4]
+                    cb = zone_rects[j,1]
+                    ce = zone_rects[j,3]
+                    slice_data[j][0:re-rb,0:ce-cb] = np.asarray(file_data[zone_rects[j,0]][rb:re,cb:ce])
+                    
+                np.save(os.path.join(dest_dir, str(zones[i]), id), slice_data)
             
             cnt += 1
-            print(f"cnt: {cnt}")
-            #if cnt > 32: break 
-        
-    
-        
+            print(f"Finished row {cnt}")
+                        

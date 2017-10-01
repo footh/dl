@@ -181,7 +181,7 @@ def animate_array(array, show=True):
     def animate(i):
         im = ax.imshow(array[i])
         return [im]
-    ani = anim.FuncAnimation(fig, animate, frames=range(0, array.shape[0]), interval=400, blit=True)
+    ani = anim.FuncAnimation(fig, animate, frames=range(0, array.shape[0]), interval=800, blit=True)
     if show:
         plt.show()
     else:
