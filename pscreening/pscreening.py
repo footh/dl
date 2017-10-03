@@ -4,7 +4,11 @@ from keras.applications.vgg16 import VGG16
 from keras.models import Model, Sequential
 from keras.layers import Input, Conv2D, Flatten, Dense, Dropout, TimeDistributed, LSTM
 from keras.layers.normalization import BatchNormalization
-from keras import backend as K
+#from keras import backend as K
+from keras.optimizers import Adam
+import zones
+import zone_generator
+import math
 
 class PScreening():
     def __init__(self,
@@ -53,6 +57,45 @@ class PScreening():
         
         self.model.summary()
         
-    def vgtest(self):
-        vgg16_model = VGG16(weights='imagenet', include_top=False, input_shape=(160, 280, 3))
-        vgg16_model.summary()
+    def compile(self, lr=0.001):
+        self.model.compile(optimizer=Adam(lr=lr), loss='binary_crossentropy', metrics=['accuracy'])
+        
+    def get_batches(self, directory, zone, target_size, batch_size=32, shuffle=True):
+        zg = zone_generator.ZoneGenerator()
+        return zg.flow_from_directory(directory, 
+                                      zone, 
+                                      target_size=target_size, 
+                                      batch_size=batch_size, 
+                                      shuffle=shuffle)
+       
+        
+def train(zone, epochs=1, batch_size=25, learning_rate=0.001, version=None):
+    zones_max = zones.zones_max_dict(file='points-all.csv', round_up=True)
+    data_shape = zones_max[zone]
+    
+    ps = PScreening(input_shape=data_shape)
+    ps.compile(learning_rate)
+    
+    train_batches = ps.get_batches('train', zone, data_shape, shuffle=True, batch_size=batch_size)
+    steps_per_epoch = math.ceil(train_batches.samples / train_batches.batch_size)
+    print(f"training sample size: {train_batches.samples}")
+    print(f"training batch size: {train_batches.batch_size}, steps: {steps_per_epoch}")
+
+    val_batches = ps.get_batches('valid', zone, data_shape, shuffle=True, batch_size=batch_size)
+    validation_steps = math.ceil(val_batches.samples / val_batches.batch_size)
+    print(f"training sample size: {val_batches.samples}")
+    print(f"training batch size: {val_batches.batch_size}, steps: {validation_steps}")
+ 
+    ps.model.fit_generator(train_batches, 
+                           steps_per_epoch=steps_per_epoch, 
+                           epochs=epochs, 
+                           validation_data=val_batches, 
+                           validation_steps=validation_steps)
+    
+    weights_version = 'zone' + str(zone) + '-' + datetime.datetime.now().strftime("%Y%m%d-%M%S")
+    if version is not None:
+        weights_version = version + '-' + weights_version
+        
+    
+    ps.model.save_weights(os.path.join('weights', weights_version+'.h5'))   
+

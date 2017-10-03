@@ -624,10 +624,10 @@ def zones_max_dict(file='points-train.csv', slice_count=16, zones=[5,6,7,8,9,10,
                            
         return zones_max
 
-def extract_zones(file='points-train.csv', dest_dir='train', slice_count=16, zones=[5,6,7,8,9,10,17], area_threshold=0):
+def extract_zones(file='points-train.csv', sample_file='points-all.csv', dest_dir='train', slice_count=16, zones=[5,6,7,8,9,10,17], area_threshold=0):
     import csv
     
-    zones_max = zones_max_dict(file=file, slice_count=slice_count, zones=zones, area_threshold=area_threshold, round_up=True)
+    zones_max = zones_max_dict(file=sample_file, slice_count=slice_count, zones=zones, area_threshold=area_threshold, round_up=True)
     
     with open(file, newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')
