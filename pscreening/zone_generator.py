@@ -20,18 +20,18 @@ class ZoneGenerator():
             return 'no dynamic padding'
         
     def flow_from_directory(self, 
-                            directory,
+                            base_dir,
                             zone,
-                            target_size=(16, 160, 280),
+                            data_shape=None,
                             batch_size=32, 
                             shuffle=True):
 
-        return NumpyFileIterator(directory,
-                                 zone, 
-                                 self, 
-                                 target_size=target_size, 
-                                 batch_size=batch_size, 
-                                 shuffle=shuffle)        
+        return ZoneFileIterator(base_dir,
+                                zone, 
+                                self, 
+                                data_shape=data_shape, 
+                                batch_size=batch_size, 
+                                shuffle=shuffle)        
     
 # COPYRIGHT
 # 
@@ -183,43 +183,41 @@ def _list_valid_filenames_in_directory(directory, white_list_formats):
                 filenames.append(os.path.join(directory, fname))
     return filenames
 
-class NumpyFileIterator(Iterator):
-    """Iterator capable of reading numpy files from a directory on disk.
+class ZoneFileIterator(Iterator):
+    """Iterator capable of reading zone numpy files from a directory on disk.
 
     # Arguments
-        directory: Path to the directory to read images from.
+        base_dir: Path to the directory to read images from.
             Each subdirectory in this directory will be
             considered to contain images from one class,
             or alternatively you could specify class subdirectories
             via the `classes` argument.
+        zone: Integer, zone #
         zone_data_generator: Instance of `ZoneGenerator`
             to use for random transformations and normalization.
         target_size: TBD tuple of integers, dimensions to resize input images to.
         batch_size: Integer, size of a batch.
         shuffle: Boolean, whether to shuffle the data between epochs.
-        seed: Random seed for data shuffling.
-        data_format: String, one of `channels_first`, `channels_last`.
+        img_scale: Boolean, whether to scale numpy array values to [0, 255]
     """
 
     def __init__(self, 
-                 directory,
+                 base_dir,
                  zone,
                  zone_data_generator,
-                 target_size=(16, 160, 280),
+                 data_shape=None,
                  batch_size=32,
-                 shuffle=True):
+                 shuffle=True,
+                 img_scale=True):
 
-        self.data_format = K.image_data_format()
-        if self.data_format == 'channels_last':
-            self.data_shape = target_size + (1,)
-        else:
-            self.data_shape = tuple(target_size[:1] + (1,) + target_size[1:]) 
+        self.data_shape = data_shape 
         
-        self.directory = os.path.join(directory, str(zone))
+        self.directory = os.path.join(base_dir, str(zone))
         self.zone = zone
         self.zone_data_generator = zone_data_generator
         
         self.label_dict = sd.label_dict()
+        self.img_scale = img_scale
 
         white_list_formats = {'npy'}
 
@@ -268,7 +266,8 @@ class NumpyFileIterator(Iterator):
             fname = self.filenames[j]
             id =  os.path.splitext(os.path.basename(fname))[0]
             data = np.load(fname)
-            data = scipy.misc.bytescale(data)
+            if self.img_scale:
+                data = scipy.misc.bytescale(data)
             batch_x[i] = data.reshape(self.data_shape)
             batch_y[i] = self.label_dict[id][self.zone-1]
 

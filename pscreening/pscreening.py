@@ -4,7 +4,6 @@ from keras.applications.vgg16 import VGG16
 from keras.models import Model, Sequential
 from keras.layers import Input, Conv2D, Flatten, Dense, Dropout, TimeDistributed, LSTM
 from keras.layers.normalization import BatchNormalization
-#from keras import backend as K
 from keras.optimizers import Adam
 import zones
 import zone_generator
@@ -13,29 +12,31 @@ import datetime
 import os
 
 class PScreening():
-    def __init__(self,
-                 input_shape=None):
-        if input_shape is not None:
-            self.create(input_shape=input_shape)
+    def __init__(self, zone):
+        self.zone=zone
+        self.input_shape=None
+        if zone is not None:
+            zones_max = zones.zones_max_dict(file='points-all.csv', round_up=True)
+            self.input_shape = zones_max[zone] + (1,)
+            print(f"input_shape for zone {zone}: {self.input_shape}")
 
-    def create(self,
-               input_shape=None):
+            self.create()
+
+    def create(self):
         """
+            Build and compile the model
         """
-        # Starting data shape TODO: this will eventually be parameterized
-        full_data_shape =  input_shape + (1,)
-        
         #---------------------
         # Vision model creation for just one frame of the input data. This will be used in the TimeDistributed layer to consume all the frames.
         # This section will convert the 1-channel image into three channels. Got idea from here: http://forums.fast.ai/t/black-and-white-images-on-vgg16/2479/13
         vision_model = Sequential()
-        vision_model.add(Conv2D(10, kernel_size=(1,1), padding='same', activation='relu', input_shape=(full_data_shape[1:])))
+        vision_model.add(Conv2D(10, kernel_size=(1,1), padding='same', activation='relu', input_shape=(self.input_shape[1:])))
         vision_model.add(Conv2D(3, kernel_size=(1,1), padding='same', activation='relu'))
         
         # Now getting the vgg16 model with pre-trained weights for some transfer learning
         # Note on adding 'input_shape', if I didn't do this, the input shape would be (None, None, None, 3). This might be OK since it's a convnet but
         # I'd rather be explicit. I'm wondering why Keras doesn't figure out since it's added to an output of this shape?
-        vgg16_model = VGG16(weights='imagenet', include_top=False, input_shape=full_data_shape[1:3] + (3,))
+        vgg16_model = VGG16(weights='imagenet', include_top=False, input_shape=self.input_shape[1:3] + (3,))
         # Freezing the weights for the pre-trained VGG16 model (TODO: should I let later layers be trained?)
         for layer in vgg16_model.layers:
             layer.trainable = False
@@ -43,7 +44,7 @@ class PScreening():
         vision_model.add(Flatten())
         #---------------------
         
-        frame_input = Input(shape=full_data_shape)
+        frame_input = Input(shape=self.input_shape)
         # Now adding the TimeDistributed wrapper to the entire vision model. Output will be the of 
         # shape (num_frames, flattened output of vision model)
         td_frame_sequence = TimeDistributed(vision_model)(frame_input)
@@ -62,29 +63,25 @@ class PScreening():
     def compile(self, lr=0.001):
         self.model.compile(optimizer=Adam(lr=lr), loss='binary_crossentropy', metrics=['accuracy'])
         
-    def get_batches(self, directory, zone, target_size, batch_size=32, shuffle=True):
+    def get_batches(self, base_dir, batch_size=32, shuffle=True):
         zg = zone_generator.ZoneGenerator()
-        return zg.flow_from_directory(directory, 
-                                      zone, 
-                                      target_size=target_size, 
-                                      batch_size=batch_size,
+        return zg.flow_from_directory(base_dir,
+                                      self.zone,
+                                      data_shape=self.input_shape, 
+                                      batch_size=batch_size, 
                                       shuffle=shuffle)
        
         
-def train(zone, epochs=1, batch_size=25, learning_rate=0.001, version=None):
-    zones_max = zones.zones_max_dict(file='points-all.csv', round_up=True)
-    data_shape = zones_max[zone]
-    print(f"data_shape for zone {zone}: {data_shape}")
-    
-    ps = PScreening(input_shape=data_shape)
+def train(zone, epochs=1, batch_size=20, learning_rate=0.001, version=None):
+    ps = PScreening(zone)
     ps.compile(learning_rate)
     
-    train_batches = ps.get_batches('train', zone, data_shape, shuffle=True, batch_size=batch_size)
+    train_batches = ps.get_batches('train', batch_size=batch_size, shuffle=True)
     steps_per_epoch = math.ceil(train_batches.samples / train_batches.batch_size)
     print(f"training sample size: {train_batches.samples}")
     print(f"training batch size: {train_batches.batch_size}, steps: {steps_per_epoch}")
 
-    val_batches = ps.get_batches('valid', zone, data_shape, shuffle=True, batch_size=batch_size)
+    val_batches = ps.get_batches('valid', batch_size=batch_size, shuffle=True)
     validation_steps = math.ceil(val_batches.samples / val_batches.batch_size)
     print(f"validation sample size: {val_batches.samples}")
     print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
@@ -105,3 +102,7 @@ def train(zone, epochs=1, batch_size=25, learning_rate=0.001, version=None):
 def vggtest():
     vgg16_model = VGG16(weights='imagenet', include_top=False, input_shape=(80, 180, 3))
     vgg16_model.summary()
+
+def test(zone, batch_size=10, weights_file=None):
+    #predict_generator(test_batches, test_batches.nb_sample)
+    return 'none'
