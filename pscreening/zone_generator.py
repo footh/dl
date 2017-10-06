@@ -5,6 +5,7 @@ import multiprocessing.pool
 from functools import partial
 from keras import backend as K
 import setup_data as sd
+import scipy
 
 class ZoneGenerator():
     def __init__(self, 
@@ -267,6 +268,7 @@ class NumpyFileIterator(Iterator):
             fname = self.filenames[j]
             id =  os.path.splitext(os.path.basename(fname))[0]
             data = np.load(fname)
+            data = scipy.misc.bytescale(data)
             batch_x[i] = data.reshape(self.data_shape)
             batch_y[i] = self.label_dict[id][self.zone-1]
 

@@ -9,6 +9,8 @@ from keras.optimizers import Adam
 import zones
 import zone_generator
 import math
+import datetime
+import os
 
 class PScreening():
     def __init__(self,
@@ -65,13 +67,14 @@ class PScreening():
         return zg.flow_from_directory(directory, 
                                       zone, 
                                       target_size=target_size, 
-                                      batch_size=batch_size, 
+                                      batch_size=batch_size,
                                       shuffle=shuffle)
        
         
 def train(zone, epochs=1, batch_size=25, learning_rate=0.001, version=None):
     zones_max = zones.zones_max_dict(file='points-all.csv', round_up=True)
     data_shape = zones_max[zone]
+    print(f"data_shape for zone {zone}: {data_shape}")
     
     ps = PScreening(input_shape=data_shape)
     ps.compile(learning_rate)
@@ -83,8 +86,8 @@ def train(zone, epochs=1, batch_size=25, learning_rate=0.001, version=None):
 
     val_batches = ps.get_batches('valid', zone, data_shape, shuffle=True, batch_size=batch_size)
     validation_steps = math.ceil(val_batches.samples / val_batches.batch_size)
-    print(f"training sample size: {val_batches.samples}")
-    print(f"training batch size: {val_batches.batch_size}, steps: {validation_steps}")
+    print(f"validation sample size: {val_batches.samples}")
+    print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
  
     ps.model.fit_generator(train_batches, 
                            steps_per_epoch=steps_per_epoch, 
@@ -99,3 +102,6 @@ def train(zone, epochs=1, batch_size=25, learning_rate=0.001, version=None):
     
     ps.model.save_weights(os.path.join('weights', weights_version+'.h5'))   
 
+def vggtest():
+    vgg16_model = VGG16(weights='imagenet', include_top=False, input_shape=(80, 180, 3))
+    vgg16_model.summary()

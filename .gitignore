@@ -6,6 +6,7 @@ pscreening/submission
 pscreening/train
 pscreening/valid
 pscreening/test
+pscreening/weights
 */__pycache__
 **/*.png
 **/*.npy
