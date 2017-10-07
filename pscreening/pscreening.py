@@ -11,6 +11,7 @@ import math
 import datetime
 import os
 
+
 class PScreening():
     def __init__(self, zone):
         self.zone=zone
@@ -103,6 +104,22 @@ def vggtest():
     vgg16_model = VGG16(weights='imagenet', include_top=False, input_shape=(80, 180, 3))
     vgg16_model.summary()
 
-def test(zone, batch_size=10, weights_file=None):
-    #predict_generator(test_batches, test_batches.nb_sample)
-    return 'none'
+def test(zone, batch_size=10, weights_file=None, evaluate=False):
+    ps = PScreening(zone)
+    ps.compile()
+    
+    test_batches = ps.get_batches('test', batch_size=batch_size, shuffle=False)
+    test_steps = math.ceil(test_batches.samples / test_batches.batch_size)
+    print(f"test sample size: {test_batches.samples}")
+    print(f"test batch size: {test_batches.batch_size}, steps: {test_steps}")
+
+    weights_file_path = os.path.join('weights', weights_file)
+    ps.model.load_weights(weights_file_path)
+    
+    results = None
+    if evaluate:
+        results = ps.model.evaluate_generator(test_batches, test_steps)
+    else:
+        results = ps.model.predict_generator(test_batches, test_steps)
+
+    return results
