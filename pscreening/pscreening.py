@@ -5,19 +5,18 @@ from keras.models import Model, Sequential
 from keras.layers import Input, Conv2D, Flatten, Dense, Dropout, TimeDistributed, LSTM
 from keras.layers.normalization import BatchNormalization
 from keras.optimizers import Adam
-import zones
+import setup_data as sd
 import zone_generator
 import math
 import datetime
 import os
-
 
 class PScreening():
     def __init__(self, zone):
         self.zone=zone
         self.input_shape=None
         if zone is not None:
-            zones_max = zones.zones_max_dict(file='points-all.csv', round_up=True)
+            zones_max = sd.zones_max_dict(file='points-all.csv', round_up=True)
             self.input_shape = zones_max[zone] + (1,)
             print(f"input_shape for zone {zone}: {self.input_shape}")
 
@@ -77,12 +76,14 @@ def train(zone, epochs=1, batch_size=20, learning_rate=0.001, version=None):
     ps = PScreening(zone)
     ps.compile(learning_rate)
     
-    train_batches = ps.get_batches('train', batch_size=batch_size, shuffle=True)
+    train_dir = os.path.join(os.getenv('PSCREENING_HOME', ''), 'train')
+    train_batches = ps.get_batches(train_dir, batch_size=batch_size, shuffle=True)
     steps_per_epoch = math.ceil(train_batches.samples / train_batches.batch_size)
     print(f"training sample size: {train_batches.samples}")
     print(f"training batch size: {train_batches.batch_size}, steps: {steps_per_epoch}")
 
-    val_batches = ps.get_batches('valid', batch_size=batch_size, shuffle=True)
+    valid_dir = os.path.join(os.getenv('PSCREENING_HOME', ''), 'valid')
+    val_batches = ps.get_batches(valid_dir, batch_size=batch_size, shuffle=True)
     validation_steps = math.ceil(val_batches.samples / val_batches.batch_size)
     print(f"validation sample size: {val_batches.samples}")
     print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
@@ -108,7 +109,8 @@ def test(zone, batch_size=10, weights_file=None, evaluate=False):
     ps = PScreening(zone)
     ps.compile()
     
-    test_batches = ps.get_batches('test', batch_size=batch_size, shuffle=False)
+    test_dir = os.path.join(os.getenv('PSCREENING_HOME', ''), 'test')
+    test_batches = ps.get_batches(test_dir, batch_size=batch_size, shuffle=False)
     test_steps = math.ceil(test_batches.samples / test_batches.batch_size)
     print(f"test sample size: {test_batches.samples}")
     print(f"test batch size: {test_batches.batch_size}, steps: {test_steps}")

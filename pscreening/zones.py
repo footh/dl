@@ -1,15 +1,9 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy import misc
 from skimage.filters import gaussian, threshold_li, threshold_mean, threshold_otsu
 from skimage.morphology import convex_hull_image, reconstruction, closing, opening, disk
 import util
-from setup_data import shuffled_files, label_dict
-from PIL import Image, ImageDraw, ImageFont
-import os
 from collections import OrderedDict
-import zones_config
-import math
 
 _DEBUG_ = False
 
@@ -531,131 +525,6 @@ def create_zones16(file_images):
                                                                                                 slice_cursor=2, slice=14, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj, z_depth=z_depth)
     zones[15][5], zones[15][6], zones[15][7], zones[15][8], zones[15][9], zones[15][10] = torso_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows,
                                                                                                 slice_cursor=1, slice=15, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj, z_depth=z_depth)
-    return zones     
+    return zones
 
-def draw_zones(file=None, slices=range(16), src_dir='train', save_file='zone_test', animation=False, padding=False):
-    # Read first file from shuffled list
-    if file is None:
-        file = shuffled_files(src_dir)[0]
-        print(file)
-
-    file_images = util.read_data(file, as_images=True)
-
-    zones = create_zones16(file_images)
-    
-    if padding:
-        zones_config.apply_padding(zones) 
-
-    for slice in slices:
-        img = file_images[slice]
-        draw = ImageDraw.Draw(img)
-        for zone in range(1,18,1):
-            if np.sum(zones[slice, zone]) > 0:
-                rect = list(zones[slice, zone])
-                draw.rectangle(rect, outline='white')
-                draw.text((rect[0]+2, rect[1]+2), str(zone), fill='white')            
-        del draw
-        
-        if animation:
-            file_images[slice] = img
-                
-        if save_file is not None:
-            img.save(os.path.join('zones', save_file + str(slice) + '.png'))
-            
-    if animation:
-        util.animate_images(file_images)        
-
-def points_file(src_dir='train', file='points.csv', padding=False):
-    import csv
-    files = shuffled_files(src_dir)
-    with open(file, 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile, delimiter=',')
-        f_count = 0
-        for f in files:
-            f_count += 1
-            print(f"Reading file {f}...")
-            file_images = util.read_data(f, as_images=True)
-            print(f"Creating zones...")
-            zones = create_zones16(file_images)
-            if padding:
-                zones_config.apply_padding(zones)
-            print(f"Write record...")
-            for i in range(16):
-                row = [[f], [i], list(zones[i][5]), list(zones[i][6]), list(zones[i][7]), list(zones[i][8]), list(zones[i][9]), list(zones[i][10]), list(zones[i][17])]
-                row = [val for sublist in row for val in sublist]
-                writer.writerow(row)
-            print(f"Record #{f_count} completed")    
-            
-def zones_max_dict(file='points-train.csv', slice_count=16, zones=[5,6,7,8,9,10,17], area_threshold=0, round_up=False):
-    """
-        Returns a dict of zone => 3-tuple of (valid_slices, max_height, max_width)
-    """
-    import csv
-    with open(file, newline='') as csvfile:
-        reader = csv.reader(csvfile, delimiter=',')
-        all_rows = np.array(list(reader))
-        zone_rects = np.array(all_rows[:,2:], dtype=np.int32)
-        
-        zones_max = {}
-        for i, z in enumerate(zones):
-           w = zone_rects[:,2+4*i] - zone_rects[:,0+4*i]
-           h = zone_rects[:,3+4*i] - zone_rects[:,1+4*i]
-           
-           # Getting boolean array of areas greater than 'area_threshold'. Reshaping to get valid areas by slice and summing.
-           # The max of the resulting array is the max number of slices needed in the extraction for that zone.
-           a = w * h > area_threshold
-           a = a.reshape(a.shape[0] // slice_count, slice_count)
-           a = np.sum(a, axis=1)
-           
-           h_idx = np.argmax(h)
-           w_idx = np.argmax(w)
-           print(f"zone {z} max h is {all_rows[h_idx][0]}")
-           print(f"zone {z} max w is {all_rows[w_idx][0]}")
-           
-           zones_max[z] = (np.max(a), h[h_idx], w[w_idx])
-        
-        if round_up:
-            import math
-            def roundup10(x):
-                return int(math.ceil(x / 10.0)) * 10
-            
-            for k, v in zones_max.items():
-                zones_max[k] = (v[0], roundup10(v[1]), roundup10(v[2]))
-                           
-        return zones_max
-
-def extract_zones(file='points-train.csv', sample_file='points-all.csv', dest_dir='train', slice_count=16, zones=[5,6,7,8,9,10,17], area_threshold=0):
-    import csv
-    
-    zones_max = zones_max_dict(file=sample_file, slice_count=slice_count, zones=zones, area_threshold=area_threshold, round_up=True)
-    
-    with open(file, newline='') as csvfile:
-        reader = csv.reader(csvfile, delimiter=',')
-        
-        all_rows = np.array(list(reader))
-        all_rows = all_rows.reshape(all_rows.shape[0] // slice_count, slice_count, all_rows.shape[1])
-        
-        cnt = 0
-        for row in all_rows:
-            file_data = util.read_data(row[0, 0])
-            id = row[0, 0].split('/')[1].split('.')[0]
-            for i in range(len(zones)):
-                # zone_rects starts as a matrix of all slices + rects. The area is calculated and zone_rects is
-                # collapsed to only the rects that pass the area_threshold
-                zone_rects = np.array(np.hstack((row[:,1:2], row[:,2+4*i:6+4*i])), dtype=np.int32)
-                a = (zone_rects[:,4] - zone_rects[:,2]) * (zone_rects[:,3] - zone_rects[:,1])
-                zone_rects = zone_rects[a > area_threshold]
-                
-                slice_data = np.zeros(zones_max[zones[i]])
-                for j in range(zone_rects.shape[0]):
-                    rb = zone_rects[j,2]
-                    re = zone_rects[j,4]
-                    cb = zone_rects[j,1]
-                    ce = zone_rects[j,3]
-                    slice_data[j][0:re-rb,0:ce-cb] = np.asarray(file_data[zone_rects[j,0]][rb:re,cb:ce])
-                    
-                np.save(os.path.join(dest_dir, str(zones[i]), id), slice_data)
-            
-            cnt += 1
-            print(f"Finished row {cnt}")
                         

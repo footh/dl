@@ -3,6 +3,10 @@ import os
 import matplotlib.pyplot as plt
 import matplotlib.animation as anim
 from scipy import misc
+import zones as z
+import zones_config
+import setup_data
+from PIL import ImageDraw
 
 def read_header(infile):
     """Read image header (first 512 bytes)
@@ -187,3 +191,34 @@ def animate_array(array, show=True):
     else:
         return ani
     
+def draw_zones(file=None, slices=range(16), src_dir='train', save_file='zone_test', animation=False, padding=False):
+    # Read first file from shuffled list
+    if file is None:
+        file = setup_data.shuffled_files(src_dir)[0]
+        print(file)
+
+    file_images = read_data(file, as_images=True)
+
+    zones = z.create_zones16(file_images)
+    
+    if padding:
+        zones_config.apply_padding(zones)
+
+    for slice in slices:
+        img = file_images[slice]
+        draw = ImageDraw.Draw(img)
+        for zone in range(1,18,1):
+            if np.sum(zones[slice, zone]) > 0:
+                rect = list(zones[slice, zone])
+                draw.rectangle(rect, outline='white')
+                draw.text((rect[0]+2, rect[1]+2), str(zone), fill='white')            
+        del draw
+        
+        if animation:
+            file_images[slice] = img
+                
+        if save_file is not None:
+            img.save(os.path.join('zones', save_file + str(slice) + '.png'))
+            
+    if animation:
+        animate_images(file_images)    
