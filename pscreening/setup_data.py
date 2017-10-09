@@ -9,57 +9,15 @@ import math
 import zones as z
 import zones_config
 
-def remove_files(src):
-    if os.path.isfile(src):
-        os.unlink(src)
-    elif os.path.isdir(src):
-        # map lazy evaluates so must wrap in list to force evaluation
-        list(map(remove_files, [os.path.join(src, fi) for fi in os.listdir(src)]))
-        
-def copy_files(files, src_dir, dest_dir, ext='aps'):
-    for f in files:
-        shutil.copy2(os.path.join(src_dir, f + '.' + ext), dest_dir)
+_HOME_DIR_ = os.getenv('PSCREENING_HOME', '.')
 
-def shuffled_files(src_dir):
-    """
-        Returns array of shuffled files (with full path) from source directory
-    """
-    
-    src_files = os.listdir(src_dir)
-    src_files = [os.path.join(src_dir, file) for file in src_files if os.path.isfile(os.path.join(src_dir, file))]
-    total_files = len(src_files)
-    print('Found %s files' % total_files)
-    
-    return np.random.permutation(src_files)
-            
-def generate_combined(src_dir, num=100, method='max'):
-    """
-        Generates a combined file from aps files in the src_dir for help in identifying zones.
-        This file is serialized as an npy file named 'combinedNUM.npy' where NUM is the number
-        of files used in the combination.
-    """
-    
-    files = shuffled_files(src_dir)
-    
-    sample = util.read_data(files[0])
-    combined = np.zeros(sample.shape) + sample
-    for file in files[1:num]:
-        if method == 'avg':
-            combined = combined + util.read_data(file)
-        else:
-            combined = np.maximum(combined, util.read_data(file))
-    
-    if method == 'avg':
-        combined = combined / num
-    
-    np.save('combined' + str(num), combined)
-    
-    
 def label_dict(label_file='stage1_labels.csv'):
     """
         Reads the label file and returns a dict of {id: [array of 0s and 1s]}. Index of label is (zone - 1).
-    """    
-    with open(label_file, newline='') as csvfile:
+    """
+    full_label_file = os.path.join(_HOME_DIR_, label_file)
+    
+    with open(full_label_file, newline='') as csvfile:
         label_reader = csv.reader(csvfile)
         headers = next(label_reader) #skip header row
         #print(headers)
@@ -78,48 +36,68 @@ def label_dict(label_file='stage1_labels.csv'):
             
         return label_dict
     
-d = label_dict()
-def get_zones(id, label_dict=d):
-    if label_dict is None:
-        label_dict = label_dict()
+_LABEL_DICT_ = label_dict()
+
+def get_zones(id):
+    return np.where(_LABEL_DICT_[id])[0] + 1
+
+def shuffled_files(src):
+    """
+        Returns array of shuffled files (with full path) from source (train, valid, test, etc.)
+    """
+    full_src_dir = os.path.join(_HOME_DIR_, src)
+    
+    src_files = os.listdir(full_src_dir)
+    src_files = [os.path.join(full_src_dir, file) for file in src_files if os.path.isfile(os.path.join(full_src_dir, file))]
+    total_files = len(src_files)
+    print('Found %s files' % total_files)
+    
+    return np.random.permutation(src_files)
+            
+def __remove_files(src):
+    if os.path.isfile(src):
+        os.unlink(src)
+    elif os.path.isdir(src):
+        # map lazy evaluates so must wrap in list to force evaluation
+        list(map(__remove_files, [os.path.join(src, fi) for fi in os.listdir(src)]))
         
-    return np.where(label_dict[id])[0] + 1
+def __copy_files(files, src_dir, dest_dir, ext='aps'):
+    for f in files:
+        shutil.copy2(os.path.join(src_dir, f + '.' + ext), dest_dir)
 
-def write_label_files(labels):
-    if labels is not None:
-        da = np.asarray([v for v in d.values()])
-        for l in labels:
-            break
-
-def setup_data(src_dir, label_file, numValid=None, numTest=None, ext='aps'):
+def setup_data(src_dir, num_valid=None, num_test=None, ext='aps'):
     """
         Moves the unlabeled files to submission dir, and the rest to train, valid and test directories
         Usage: setup_data('data','stage1_labels.csv', numValid=100, numTest=100)
     """    
+    full_src_dir = os.path.join(_HOME_DIR_, src_dir)
+    train_dir = os.path.join(_HOME_DIR_, 'train')
+    valid_dir = os.path.join(_HOME_DIR_, 'valid')
+    test_dir = os.path.join(_HOME_DIR_, 'test')
+    submission_dir = os.path.join(_HOME_DIR_, 'submission')
 
     print('Clearing train directory...')
-    remove_files('train')
+    __remove_files(train_dir)
     print('Clearing valid directory...')
-    remove_files('valid')
+    __remove_files(valid_dir)
     print('Clearing test directory...')
-    remove_files('test')
+    __remove_files(test_dir)
     print('Clearing submission directory...')
-    remove_files('submission')
+    __remove_files(submission_dir)
     
-    src_files = os.listdir(src_dir)
+    src_files = os.listdir(full_src_dir)
     src_files = [f.split('.')[0] for f in src_files]
     total_files = len(src_files)
     print('Found %s files' % total_files)
     
-    labels = label_dict(label_file)
-    label_keys = list(labels.keys())
+    label_keys = list(_LABEL_DICT_.keys())
     labeled_count = len(label_keys)
-    print('Found %s labeled files' % labeled_count)    
+    print('Found %s labeled files' % labeled_count)
     
     # files not labeled are submission data
     submission_keys = list(set(src_files) - set(label_keys))
     print('Copying %s submission files' % len(submission_keys))
-    copy_files(submission_keys, src_dir, 'submission', ext=ext)    
+    __copy_files(submission_keys, full_src_dir, submission_dir, ext=ext)    
     
     # shuffle the rest
     shuffled_files = np.random.permutation(label_keys)
@@ -135,35 +113,21 @@ def setup_data(src_dir, label_file, numValid=None, numTest=None, ext='aps'):
         test_count = min(max_non_training, numTest)
          
     print('Copying %s validation files' % valid_count)
-    copy_files(label_keys[:valid_count], src_dir, 'valid', ext=ext)
+    __copy_files(shuffled_files[:valid_count], full_src_dir, valid_dir, ext=ext)
      
     print('Copying %s test files' % test_count)
-    copy_files(label_keys[valid_count:(valid_count + test_count)], src_dir, 'test', ext=ext)
+    __copy_files(shuffled_files[valid_count:(valid_count + test_count)], full_src_dir, test_dir, ext=ext)
      
     print('Copying %s training files' % (labeled_count - (valid_count + test_count)))
-    copy_files(label_keys[(valid_count + test_count):], src_dir, 'train', ext=ext)
+    __copy_files(shuffled_files[(valid_count + test_count):], full_src_dir, train_dir, ext=ext)
 
-def submission_file():
-    files = os.listdir('submission')
-    files.sort()
-    print(f"{len(files)} files found...")
-    with open('submission.csv', 'w') as sub_file:
-        wr = csv.writer(sub_file, delimiter=',')
-        wr.writerow(['Id', 'Probability'])
-        for file in files:
-            id, _ = file.split('.')
-            for i in range(1, 18, 1):
-                id_zone = id + '_Zone' + str(i)
-                wr.writerow([id_zone, 0.5])
-                
 def points_file(src='train', padding=False):
     """
         Creates points file for the given 'src' files ('train', 'valid', 'test', etc)
     """
-    full_src_dir = os.path.join(os.getenv('PSCREENING_HOME', ''), src)
     
-    files = shuffled_files(full_src_dir)
-    file = 'points-' + src + '.csv'
+    files = shuffled_files(src)
+    file = os.path.join(_HOME_DIR_, 'points-' + src + '.csv')
     with open(file, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile, delimiter=',')
         f_count = 0
@@ -181,12 +145,13 @@ def points_file(src='train', padding=False):
                 row = [val for sublist in row for val in sublist]
                 writer.writerow(row)
             print(f"Record #{f_count} completed")
-
+    
 def zones_max_dict(file='points-all.csv', slice_count=16, zones=[5,6,7,8,9,10,17], area_threshold=0, round_up=False):
     """
         Returns a dict of zone => 3-tuple of (valid_slices, max_height, max_width)
         Calculates these values from the passed in points file
     """
+    file = os.path.join(_HOME_DIR_, file)    
     with open(file, newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')
         all_rows = np.array(list(reader))
@@ -218,15 +183,15 @@ def zones_max_dict(file='points-all.csv', slice_count=16, zones=[5,6,7,8,9,10,17
                 zones_max[k] = (v[0], roundup10(v[1]), roundup10(v[2]))
                            
         return zones_max
-
+    
 def extract_zones(src='train', sample_file='points-all.csv', slice_count=16, zones=[5,6,7,8,9,10,17], area_threshold=0):
     """
         For zones 'src', uses the associated points file to extract the zones and save them as numpy arrays in a directory by zone 
     """
-    file = 'points-' + src + '.csv'
+    file = os.path.join(_HOME_DIR_, 'points-' + src + '.csv')
     
     zones_max = zones_max_dict(file=sample_file, slice_count=slice_count, zones=zones, area_threshold=area_threshold, round_up=True)
-    full_dest_dir = os.path.join(os.getenv('PSCREENING_HOME', ''), src)
+    full_dest_dir = os.path.join(_HOME_DIR_, 'training', src)
     
     with open(file, newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')

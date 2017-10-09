@@ -19,17 +19,21 @@ class ZoneGenerator():
         else:
             return 'no dynamic padding'
         
+    # Data shape here should be as it is saved on disk. The channels argument will assure
+    # the channels are added properly
     def flow_from_directory(self, 
                             base_dir,
                             zone,
                             data_shape=None,
+                            channels=1,
                             batch_size=32, 
                             shuffle=True):
 
         return ZoneFileIterator(base_dir,
                                 zone, 
                                 self, 
-                                data_shape=data_shape, 
+                                data_shape=data_shape,
+                                channels=channels,
                                 batch_size=batch_size, 
                                 shuffle=shuffle)        
     
@@ -187,15 +191,12 @@ class ZoneFileIterator(Iterator):
     """Iterator capable of reading zone numpy files from a directory on disk.
 
     # Arguments
-        base_dir: Path to the directory to read images from.
-            Each subdirectory in this directory will be
-            considered to contain images from one class,
-            or alternatively you could specify class subdirectories
-            via the `classes` argument.
-        zone: Integer, zone #
+        base_dir: base directory to read images from, that when combined with zone will form the full path
+        zone: Integer, zone #, used to get the proper labels
         zone_data_generator: Instance of `ZoneGenerator`
             to use for random transformations and normalization.
-        target_size: TBD tuple of integers, dimensions to resize input images to.
+        data_shape: Data shape as it is stored on disk (doesn't include channel) Ex. (5, 80, 180)
+        channels: Channels to reshape to. When channels > 1, data is duplicated along that channel
         batch_size: Integer, size of a batch.
         shuffle: Boolean, whether to shuffle the data between epochs.
         img_scale: Boolean, whether to scale numpy array values to [0, 255]
@@ -206,11 +207,13 @@ class ZoneFileIterator(Iterator):
                  zone,
                  zone_data_generator,
                  data_shape=None,
+                 channels=1,
                  batch_size=32,
                  shuffle=True,
                  img_scale=True):
 
-        self.data_shape = data_shape 
+        self.data_shape = data_shape
+        self.channels = channels
         
         self.directory = os.path.join(base_dir, str(zone))
         self.zone = zone
@@ -259,7 +262,7 @@ class ZoneFileIterator(Iterator):
             index_array, current_index, current_batch_size = next(self.index_generator)
         # The transformation of images is not under thread lock
         # so it can be done in parallel
-        batch_x = np.zeros((current_batch_size,) + self.data_shape, dtype=K.floatx())
+        batch_x = np.zeros((current_batch_size,) + self.data_shape + (self.channels,), dtype=K.floatx())
         batch_y = np.zeros(current_batch_size)
         # build batch of image data
         for i, j in enumerate(index_array):
@@ -268,7 +271,15 @@ class ZoneFileIterator(Iterator):
             data = np.load(fname)
             if self.img_scale:
                 data = scipy.misc.bytescale(data)
-            batch_x[i] = data.reshape(self.data_shape)
+            
+            # Zone data is saved without the channel. Need to reshape here. If one channel, reshape is simple. If more than one
+            # data is duplicated 'channels' number of times
+            # TODO: The multiple channel case needs to be implemented
+            if channels == 1:
+                batch_x[i] = data.reshape(self.data_shape + (channels,))
+            else:
+                batch_x[i] = data.reshape(self.data_shape + (1,))
+            
             batch_y[i] = self.label_dict[id][self.zone-1]
 
         return batch_x, batch_y
