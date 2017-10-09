@@ -11,7 +11,7 @@ import math
 import datetime
 import os
 
-_HOME_DIR_ = os.getenv('PSCREENING_HOME', '.')
+PSCREENING_HOME = os.getenv('PSCREENING_HOME', '.')
 
 # NOTES:
 # All models will have an input_shape argument that includes the channel. Ex. (5, 80, 180, 1)
@@ -87,13 +87,13 @@ def train(model, zone, epochs=1, batch_size=20, learning_rate=0.001, version=Non
     model.create(input_shape=data_shape + (1,))
     model.compile(learning_rate)
     
-    train_dir = os.path.join(_HOME_DIR_, 'train')
+    train_dir = os.path.join(PSCREENING_HOME, 'train')
     train_batches = ps.get_batches(train_dir, zone, data_shape, batch_size=batch_size, shuffle=True)
     steps_per_epoch = math.ceil(train_batches.samples / train_batches.batch_size)
     print(f"training sample size: {train_batches.samples}")
     print(f"training batch size: {train_batches.batch_size}, steps: {steps_per_epoch}")
 
-    valid_dir = os.path.join(_HOME_DIR_, 'valid')
+    valid_dir = os.path.join(PSCREENING_HOME, 'valid')
     val_batches = ps.get_batches(valid_dir, zone, data_shape, batch_size=batch_size, shuffle=True)
     validation_steps = math.ceil(val_batches.samples / val_batches.batch_size)
     print(f"validation sample size: {val_batches.samples}")
@@ -110,7 +110,7 @@ def train(model, zone, epochs=1, batch_size=20, learning_rate=0.001, version=Non
         weights_version = version + '-' + weights_version
         
     
-    ps.model.save_weights(os.path.join(_HOME_DIR_, 'weights', weights_version+'.h5'))   
+    ps.model.save_weights(os.path.join(PSCREENING_HOME, 'weights', weights_version+'.h5'))   
 
 def test(model, zone, batch_size=10, weights_file=None, evaluate=False):
     data_shape = sd.zones_max_dict(round_up=True)[zone]
@@ -119,13 +119,13 @@ def test(model, zone, batch_size=10, weights_file=None, evaluate=False):
     model.compile(learning_rate)
 
     
-    test_dir = os.path.join(_HOME_DIR_, 'test')
+    test_dir = os.path.join(PSCREENING_HOME, 'test')
     test_batches = ps.get_batches(test_dir, batch_size=batch_size, shuffle=False)
     test_steps = math.ceil(test_batches.samples / test_batches.batch_size)
     print(f"test sample size: {test_batches.samples}")
     print(f"test batch size: {test_batches.batch_size}, steps: {test_steps}")
 
-    weights_file_path = os.path.join(_HOME_DIR_, 'weights', weights_file)
+    weights_file_path = os.path.join(PSCREENING_HOME, 'weights', weights_file)
     ps.model.load_weights(weights_file_path)
     
     results = None
