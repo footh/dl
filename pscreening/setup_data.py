@@ -65,16 +65,16 @@ def __copy_files(files, src_dir, dest_dir, ext='aps'):
     for f in files:
         shutil.copy2(os.path.join(src_dir, f + '.' + ext), dest_dir)
 
-def setup_data(src_dir, num_valid=None, num_test=None, ext='aps'):
+def setup_data(num_valid=None, num_test=None, ext='aps'):
     """
         Moves the unlabeled files to submission dir, and the rest to train, valid and test directories
         Usage: setup_data('data','stage1_labels.csv', numValid=100, numTest=100)
     """    
-    full_src_dir = os.path.join(_HOME_DIR_, src_dir)
-    train_dir = os.path.join(_HOME_DIR_, 'train')
-    valid_dir = os.path.join(_HOME_DIR_, 'valid')
-    test_dir = os.path.join(_HOME_DIR_, 'test')
-    submission_dir = os.path.join(_HOME_DIR_, 'submission')
+    all_src_dir = os.path.join(_HOME_DIR_, 'raw-data/all')
+    train_dir = os.path.join(_HOME_DIR_, 'raw-data/train')
+    valid_dir = os.path.join(_HOME_DIR_, 'raw-data/valid')
+    test_dir = os.path.join(_HOME_DIR_, 'raw-data/test')
+    submission_dir = os.path.join(_HOME_DIR_, 'raw-data/submission')
 
     print('Clearing train directory...')
     __remove_files(train_dir)
@@ -85,7 +85,7 @@ def setup_data(src_dir, num_valid=None, num_test=None, ext='aps'):
     print('Clearing submission directory...')
     __remove_files(submission_dir)
     
-    src_files = os.listdir(full_src_dir)
+    src_files = os.listdir(all_src_dir)
     src_files = [f.split('.')[0] for f in src_files]
     total_files = len(src_files)
     print('Found %s files' % total_files)
@@ -97,7 +97,7 @@ def setup_data(src_dir, num_valid=None, num_test=None, ext='aps'):
     # files not labeled are submission data
     submission_keys = list(set(src_files) - set(label_keys))
     print('Copying %s submission files' % len(submission_keys))
-    __copy_files(submission_keys, full_src_dir, submission_dir, ext=ext)    
+    __copy_files(submission_keys, all_src_dir, submission_dir, ext=ext)    
     
     # shuffle the rest
     shuffled_files = np.random.permutation(label_keys)
@@ -113,13 +113,13 @@ def setup_data(src_dir, num_valid=None, num_test=None, ext='aps'):
         test_count = min(max_non_training, numTest)
          
     print('Copying %s validation files' % valid_count)
-    __copy_files(shuffled_files[:valid_count], full_src_dir, valid_dir, ext=ext)
+    __copy_files(shuffled_files[:valid_count], all_src_dir, valid_dir, ext=ext)
      
     print('Copying %s test files' % test_count)
-    __copy_files(shuffled_files[valid_count:(valid_count + test_count)], full_src_dir, test_dir, ext=ext)
+    __copy_files(shuffled_files[valid_count:(valid_count + test_count)], all_src_dir, test_dir, ext=ext)
      
     print('Copying %s training files' % (labeled_count - (valid_count + test_count)))
-    __copy_files(shuffled_files[(valid_count + test_count):], full_src_dir, train_dir, ext=ext)
+    __copy_files(shuffled_files[(valid_count + test_count):], all_src_dir, train_dir, ext=ext)
 
 def points_file(src='train', padding=False):
     """
