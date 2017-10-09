@@ -1,7 +1,7 @@
 *.zip
 *.csv
 galaxy/images_training_rev1
-pscreening/data
+pscreening/raw-data
 pscreening/submission
 pscreening/train
 pscreening/valid
