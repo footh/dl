@@ -29,8 +29,7 @@ class VGG16Model():
         else:
             print(f"No input shape given. Model cannot be created")
             return
-
-        
+    
         #---------------------
         # Vision model creation for just one frame of the input data. This will be used in the TimeDistributed layer to consume all the frames.
         # This section will convert the 1-channel image into three channels. Got idea from here: http://forums.fast.ai/t/black-and-white-images-on-vgg16/2479/13
@@ -89,28 +88,28 @@ def train(model, zone, epochs=1, batch_size=20, learning_rate=0.001, version=Non
     model.create(input_shape=data_shape + (1,))
     model.compile(learning_rate)
     
-    train_batches = ps.get_batches('train', zone, data_shape, batch_size=batch_size, shuffle=True)
+    train_batches = get_batches('train', zone, data_shape, batch_size=batch_size, shuffle=True)
     steps_per_epoch = math.ceil(train_batches.samples / train_batches.batch_size)
     print(f"training sample size: {train_batches.samples}")
     print(f"training batch size: {train_batches.batch_size}, steps: {steps_per_epoch}")
 
-    val_batches = ps.get_batches('valid', zone, data_shape, batch_size=batch_size, shuffle=True)
+    val_batches = get_batches('valid', zone, data_shape, batch_size=batch_size, shuffle=True)
     validation_steps = math.ceil(val_batches.samples / val_batches.batch_size)
     print(f"validation sample size: {val_batches.samples}")
     print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
  
-    ps.model.fit_generator(train_batches, 
-                           steps_per_epoch=steps_per_epoch, 
-                           epochs=epochs, 
-                           validation_data=val_batches, 
-                           validation_steps=validation_steps)
+    model.model.fit_generator(train_batches, 
+                              steps_per_epoch=steps_per_epoch, 
+                              epochs=epochs, 
+                              validation_data=val_batches, 
+                              validation_steps=validation_steps)
     
     weights_version = 'zone' + str(zone) + '-' + datetime.datetime.now().strftime("%Y%m%d-%M%S")
     if version is not None:
         weights_version = version + '-' + weights_version
         
     
-    ps.model.save_weights(os.path.join(PSCREENING_HOME, config.WEIGHTS_DIR, weights_version+'.h5'))   
+    model.model.save_weights(os.path.join(PSCREENING_HOME, config.WEIGHTS_DIR, weights_version+'.h5'))   
 
 def test(model, zone, batch_size=10, weights_file=None, evaluate=False):
     data_shape = sd.zones_max_dict(round_up=True)[zone]
@@ -118,19 +117,19 @@ def test(model, zone, batch_size=10, weights_file=None, evaluate=False):
     model.create(input_shape=data_shape + (1,))
     model.compile(learning_rate)
 
-    test_batches = ps.get_batches('test', batch_size=batch_size, shuffle=False)
+    test_batches = get_batches('test', batch_size=batch_size, shuffle=False)
     test_steps = math.ceil(test_batches.samples / test_batches.batch_size)
     print(f"test sample size: {test_batches.samples}")
     print(f"test batch size: {test_batches.batch_size}, steps: {test_steps}")
 
     weights_file_path = os.path.join(PSCREENING_HOME, config.WEIGHTS_DIR, weights_file)
-    ps.model.load_weights(weights_file_path)
+    model.model.load_weights(weights_file_path)
     
     results = None
     if evaluate:
-        results = ps.model.evaluate_generator(test_batches, test_steps)
+        results = model.model.evaluate_generator(test_batches, test_steps)
     else:
-        results = ps.model.predict_generator(test_batches, test_steps)
+        results = model.model.predict_generator(test_batches, test_steps)
 
     return results
 
