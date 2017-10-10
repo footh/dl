@@ -109,7 +109,7 @@ def train(model, zone, epochs=1, batch_size=20, learning_rate=0.001, version=Non
         weights_version = version + '-' + weights_version
         
     
-    model.model.save_weights(os.path.join(PSCREENING_HOME, config.WEIGHTS_DIR, weights_version+'.h5'))   
+    model.model.save_weights(os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, weights_version+'.h5'))   
 
 def test(model, zone, batch_size=10, weights_file=None, evaluate=False):
     data_shape = sd.zones_max_dict(round_up=True)[zone]
@@ -122,7 +122,7 @@ def test(model, zone, batch_size=10, weights_file=None, evaluate=False):
     print(f"test sample size: {test_batches.samples}")
     print(f"test batch size: {test_batches.batch_size}, steps: {test_steps}")
 
-    weights_file_path = os.path.join(PSCREENING_HOME, config.WEIGHTS_DIR, weights_file)
+    weights_file_path = os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, weights_file)
     model.model.load_weights(weights_file_path)
     
     results = None
