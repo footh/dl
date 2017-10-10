@@ -16,7 +16,7 @@ import os
 # All models will have an input_shape argument that includes the channel. Ex. (5, 80, 180, 1)
 
 class VGG16Model():
-    def __init__(self, input_shape):
+    def __init__(self):
         self.input_shape = None
 
     def create(self, input_shape=None):
@@ -24,6 +24,7 @@ class VGG16Model():
             Build the model and display the summary
         """
         if input_shape is not None:
+            self.input_shape = input_shape
             print(f"input_shape: {self.input_shape}")
         else:
             print(f"No input shape given. Model cannot be created")
