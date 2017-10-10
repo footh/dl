@@ -184,7 +184,7 @@ def zones_max_dict(file='points-all.csv', slice_count=16, zones=[5,6,7,8,9,10,17
                            
         return zones_max
     
-def extract_zones(src='train', sample_file='points-all.csv', slice_count=16, zones=[5,6,7,8,9,10,17], area_threshold=0):
+def extract_zones(src='train', sample_file='points-all.csv', slice_count=16, zones=[5,6,7,8,9,10,17], area_threshold=0, overwrite=True):
     """
         For zones 'src', uses the associated points file to extract the zones and save them as numpy arrays in a directory by zone 
     """
@@ -205,6 +205,11 @@ def extract_zones(src='train', sample_file='points-all.csv', slice_count=16, zon
             file_data = util.read_data(row[0, 0])
             id = os.path.basename(row[0, 0]).split('.')[0]
             for i in range(len(zones)):
+                file_name = os.path.join(full_dest_dir, str(zones[i]), id) + '.npy'
+                if not overwrite and os.path.exists(file_name):
+                    print(f"File {file_name} already exists. Skipping!")
+                    continue
+                
                 # zone_rects starts as a matrix of all slices + rects. The area is calculated and zone_rects is
                 # collapsed to only the rects that pass the area_threshold
                 zone_rects = np.array(np.hstack((row[:,1:2], row[:,2+4*i:6+4*i])), dtype=np.int32)
@@ -219,7 +224,7 @@ def extract_zones(src='train', sample_file='points-all.csv', slice_count=16, zon
                     ce = zone_rects[j,3]
                     slice_data[j][0:re-rb,0:ce-cb] = np.asarray(file_data[zone_rects[j,0]][rb:re,cb:ce])
                     
-                np.save(os.path.join(full_dest_dir, str(zones[i]), id), slice_data)
+                np.save(file_name, slice_data)
             
             cnt += 1
             print(f"Finished row {cnt}")
