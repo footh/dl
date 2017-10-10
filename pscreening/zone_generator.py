@@ -275,8 +275,8 @@ class ZoneFileIterator(Iterator):
             # Zone data is saved without the channel. Need to reshape here. If one channel, reshape is simple. If more than one
             # data is duplicated 'channels' number of times
             # TODO: The multiple channel case needs to be implemented
-            if channels == 1:
-                batch_x[i] = data.reshape(self.data_shape + (channels,))
+            if self.channels == 1:
+                batch_x[i] = data.reshape(self.data_shape + (self.channels,))
             else:
                 batch_x[i] = data.reshape(self.data_shape + (1,))
             

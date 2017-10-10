@@ -6,18 +6,16 @@ import scipy.misc
 import util
 import csv
 import math
+
+import config
 import zones as z
 import zones_config
-
-PSCREENING_HOME = os.getenv('PSCREENING_HOME', '.')
-RAW_DATA_DIR = 'raw-data'
-TRAINING_DIR = 'training'
 
 def label_dict(label_file='stage1_labels.csv'):
     """
         Reads the label file and returns a dict of {id: [array of 0s and 1s]}. Index of label is (zone - 1).
     """
-    full_label_file = os.path.join(PSCREENING_HOME, label_file)
+    full_label_file = os.path.join(config.PSCREENING_HOME, label_file)
     
     with open(full_label_file, newline='') as csvfile:
         label_reader = csv.reader(csvfile)
@@ -47,7 +45,7 @@ def shuffled_files(src):
     """
         Returns array of shuffled files (with full path) from source (train, valid, test, etc.)
     """
-    full_src_dir = os.path.join(PSCREENING_HOME, RAW_DATA_DIR, src)
+    full_src_dir = os.path.join(config.PSCREENING_HOME, config.RAW_DATA_DIR, src)
     
     src_files = os.listdir(full_src_dir)
     src_files = [os.path.join(full_src_dir, file) for file in src_files if os.path.isfile(os.path.join(full_src_dir, file))]
@@ -72,11 +70,11 @@ def setup_data(num_valid=None, num_test=None, ext='aps'):
         Moves the unlabeled files to submission dir, and the rest to train, valid and test directories
         Usage: setup_data('data','stage1_labels.csv', num_valid=100, num_test=100)
     """    
-    all_src_dir = os.path.join(PSCREENING_HOME, RAW_DATA_DIR, 'all')
-    train_dir = os.path.join(PSCREENING_HOME, RAW_DATA_DIR, 'train')
-    valid_dir = os.path.join(PSCREENING_HOME, RAW_DATA_DIR, 'valid')
-    test_dir = os.path.join(PSCREENING_HOME, RAW_DATA_DIR, 'test')
-    submission_dir = os.path.join(PSCREENING_HOME, RAW_DATA_DIR, 'submission')
+    all_src_dir = os.path.join(config.PSCREENING_HOME, config.RAW_DATA_DIR, 'all')
+    train_dir = os.path.join(config.PSCREENING_HOME, config.RAW_DATA_DIR, 'train')
+    valid_dir = os.path.join(config.PSCREENING_HOME, config.RAW_DATA_DIR, 'valid')
+    test_dir = os.path.join(config.PSCREENING_HOME, config.RAW_DATA_DIR, 'test')
+    submission_dir = os.path.join(config.PSCREENING_HOME, config.RAW_DATA_DIR, 'submission')
 
     print('Clearing train directory...')
     __remove_files(train_dir)
@@ -129,7 +127,7 @@ def points_file(src='train', padding=False):
     """
     
     files = shuffled_files(src)
-    file = os.path.join(PSCREENING_HOME, 'points-' + src + '.csv')
+    file = os.path.join(config.PSCREENING_HOME, 'points-' + src + '.csv')
     with open(file, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile, delimiter=',')
         f_count = 0
@@ -153,7 +151,7 @@ def zones_max_dict(file='points-all.csv', slice_count=16, zones=[5,6,7,8,9,10,17
         Returns a dict of zone => 3-tuple of (valid_slices, max_height, max_width)
         Calculates these values from the passed in points file
     """
-    file = os.path.join(PSCREENING_HOME, file)    
+    file = os.path.join(config.PSCREENING_HOME, file)    
     with open(file, newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')
         all_rows = np.array(list(reader))
@@ -190,10 +188,10 @@ def extract_zones(src='train', sample_file='points-all.csv', slice_count=16, zon
     """
         For zones 'src', uses the associated points file to extract the zones and save them as numpy arrays in a directory by zone 
     """
-    file = os.path.join(PSCREENING_HOME, 'points-' + src + '.csv')
+    file = os.path.join(config.PSCREENING_HOME, 'points-' + src + '.csv')
     
     zones_max = zones_max_dict(file=sample_file, slice_count=slice_count, zones=zones, area_threshold=area_threshold, round_up=True)
-    full_dest_dir = os.path.join(PSCREENING_HOME, 'training', src)
+    full_dest_dir = os.path.join(config.PSCREENING_HOME, config.TRAINING_DIR, src)
     
     with open(file, newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')
