@@ -18,6 +18,7 @@ import os
 class VGG16Model():
     def __init__(self):
         self.input_shape = None
+        self.name = 'vgg16'
 
     def create(self, input_shape=None):
         """
@@ -98,18 +99,21 @@ def train(model, zone, epochs=1, batch_size=20, learning_rate=0.001, version=Non
     print(f"validation sample size: {val_batches.samples}")
     print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
  
-    model.model.fit_generator(train_batches, 
-                              steps_per_epoch=steps_per_epoch, 
-                              epochs=epochs, 
+    model.model.fit_generator(train_batches,
+                              steps_per_epoch=steps_per_epoch,
+                              epochs=epochs,
                               validation_data=val_batches, 
                               validation_steps=validation_steps)
     
-    weights_version = 'zone' + str(zone) + '-' + datetime.datetime.now().strftime("%Y%m%d-%M%S")
+    weights_version = f"zone{zone}-{model.name}-e{epochs}-bs{batch_size}-lr{str(learning_rate).split('.')[1]}"
+    weights_version += f"-{datetime.datetime.now().strftime('%Y%m%d-%M%S')}" 
     if version is not None:
-        weights_version = version + '-' + weights_version
+        weights_version += f"-{version}"
         
+    weights_file = weights_version + '.h5'
+    model.model.save_weights(os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, weights_file))
     
-    model.model.save_weights(os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, weights_version+'.h5'))   
+    return weights_file
 
 def test(model, zone, batch_size=10, weights_file=None, evaluate=False):
     data_shape = sd.zones_max_dict(round_up=True)[zone]
