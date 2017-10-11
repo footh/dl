@@ -1,4 +1,6 @@
 import numpy as np
+import tensorflow as tf
+from keras.backend.tensorflow_backend import set_session
 from keras.applications.vgg16 import VGG16
 from keras.models import Model, Sequential
 from keras.layers import Input, Conv2D, Flatten, Dense, Dropout, TimeDistributed, LSTM
@@ -15,8 +17,16 @@ import os
 # NOTES:
 # All models will have an input_shape argument that includes the channel. Ex. (5, 80, 180, 1)
 
-class VGG16Model():
+class PScreeningModel():
     def __init__(self):
+        config = tf.ConfigProto()
+        config.gpu_options.allow_growth = True
+        set_session(tf.Session(config=config))
+
+
+class VGG16Model(PScreeningModel):
+    def __init__(self):
+        super().__init__()
         self.input_shape = None
         self.name = 'vgg16'
 
