@@ -97,7 +97,7 @@ def train(model, zone, epochs=1, batch_size=20, learning_rate=0.001, version=Non
     data_shape = sd.zones_max_dict(round_up=True)[zone]
     # Assuming one-channel inputs for now.
     model.create(input_shape=data_shape + (1,))
-    model.compile(learning_rate)
+    model.compile(lr=learning_rate)
     
     train_batches = get_batches('train', zone, data_shape, batch_size=batch_size, shuffle=True)
     steps_per_epoch = math.ceil(train_batches.samples / train_batches.batch_size)
@@ -129,7 +129,7 @@ def test(model, zone, batch_size=10, weights_file=None, evaluate=False):
     data_shape = sd.zones_max_dict(round_up=True)[zone]
     # Assuming one-channel inputs for now.
     model.create(input_shape=data_shape + (1,))
-    model.compile(learning_rate)
+    model.compile()
 
     test_batches = get_batches('test', batch_size=batch_size, shuffle=False)
     test_steps = math.ceil(test_batches.samples / test_batches.batch_size)
