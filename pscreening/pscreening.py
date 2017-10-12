@@ -112,11 +112,11 @@ def train(model, zone, epochs=1, batch_size=20, learning_rate=0.001, version=Non
     model.model.fit_generator(train_batches,
                               steps_per_epoch=steps_per_epoch,
                               epochs=epochs,
-                              validation_data=val_batches, 
+                      g        validation_data=val_batches, 
                               validation_steps=validation_steps)
     
     weights_version = f"zone{zone}-{model.name}-e{epochs}-bs{batch_size}-lr{str(learning_rate).split('.')[1]}"
-    weights_version += f"-{datetime.datetime.now().strftime('%Y%m%d-%M%S')}" 
+    weights_version += f"-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}" 
     if version is not None:
         weights_version += f"-{version}"
         
