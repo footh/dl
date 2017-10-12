@@ -131,7 +131,7 @@ def test(model, zone, batch_size=10, weights_file=None, evaluate=False):
     model.create(input_shape=data_shape + (1,))
     model.compile()
 
-    test_batches = get_batches('test', batch_size=batch_size, shuffle=False)
+    test_batches = get_batches('test', zone, data_shape, batch_size=batch_size, shuffle=False)
     test_steps = math.ceil(test_batches.samples / test_batches.batch_size)
     print(f"test sample size: {test_batches.samples}")
     print(f"test batch size: {test_batches.batch_size}, steps: {test_steps}")
