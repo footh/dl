@@ -43,9 +43,9 @@ class VGG16Model(PScreeningModel):
             self.input_shape = input_shape
             print(f"input_shape: {self.input_shape}")
             if K.image_data_format() == 'channels_last':
-                vgg_shape = input_shape + (3,)
+                vgg_shape = input_shape[1:3] + (3,)
             else:
-                vgg_shape = (input_shape[0],) + (3,) + input_shape[2:]
+                vgg_shape = (3,) + input_shape[2:]
             print(f"vgg_shape: {vgg_shape}")
         else:
             print(f"No input shape given. Model cannot be created")
