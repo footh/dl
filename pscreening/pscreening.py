@@ -3,6 +3,7 @@ import numpy as np
 #import tensorflow as tf
 #from keras.backend.tensorflow_backend import set_session
 
+from keras import backend as K
 from keras.applications.vgg16 import VGG16
 from keras.models import Model, Sequential
 from keras.layers import Input, Conv2D, Flatten, Dense, Dropout, TimeDistributed, LSTM
@@ -37,9 +38,15 @@ class VGG16Model(PScreeningModel):
         """
             Build the model and display the summary
         """
+        vgg_shape = None
         if input_shape is not None:
             self.input_shape = input_shape
             print(f"input_shape: {self.input_shape}")
+            if K.image_data_format() == 'channels_last':
+                vgg_shape = data_shape + (3,)
+            else:
+                vgg_shape = (data_shape[0],) + (3,) + data_shape[1:]
+            print(f"vgg_shape: {vgg_shape}")
         else:
             print(f"No input shape given. Model cannot be created")
             return
@@ -54,7 +61,7 @@ class VGG16Model(PScreeningModel):
         # Now getting the vgg16 model with pre-trained weights for some transfer learning
         # Note on adding 'input_shape', if I didn't do this, the input shape would be (None, None, None, 3). This might be OK since it's a convnet but
         # I'd rather be explicit. I'm wondering why Keras doesn't figure out since it's added to an output of this shape?
-        vgg16_model = VGG16(weights='imagenet', include_top=False, input_shape=self.input_shape[1:3] + (3,))
+        vgg16_model = VGG16(weights='imagenet', include_top=False, input_shape=vgg_shape)
         # Freezing the weights for the pre-trained VGG16 model (TODO: should I let later layers be trained?)
         for layer in vgg16_model.layers:
             layer.trainable = False
@@ -109,7 +116,6 @@ def train(model, zone, epochs=1, batch_size=20, learning_rate=0.001, version=Non
     print(f"validation sample size: {val_batches.samples}")
     print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
     
-    print(f"model data_shape: {train_batches.data_shape}")
     model.create(input_shape=train_batches.data_shape)
     model.compile(lr=learning_rate)
  
