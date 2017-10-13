@@ -212,7 +212,12 @@ class ZoneFileIterator(Iterator):
                  shuffle=True,
                  img_scale=True):
 
-        self.data_shape = data_shape
+        data_format = K.image_data_format()
+        if data_format == 'channels_last':
+            self.data_shape = data_shape + (channels,)
+        else:
+            self.data_shape = (data_shape[0],) + (channels,) + data_shape[1:]
+        
         self.channels = channels
         
         self.directory = os.path.join(base_dir, str(zone))
@@ -262,7 +267,7 @@ class ZoneFileIterator(Iterator):
             index_array, current_index, current_batch_size = next(self.index_generator)
         # The transformation of images is not under thread lock
         # so it can be done in parallel
-        batch_x = np.zeros((current_batch_size,) + self.data_shape + (self.channels,), dtype=K.floatx())
+        batch_x = np.zeros((current_batch_size,) + self.data_shape, dtype=K.floatx())
         batch_y = np.zeros(current_batch_size)
         # build batch of image data
         for i, j in enumerate(index_array):
@@ -274,11 +279,11 @@ class ZoneFileIterator(Iterator):
             
             # Zone data is saved without the channel. Need to reshape here. If one channel, reshape is simple. If more than one
             # data is duplicated 'channels' number of times
-            # TODO: The multiple channel case needs to be implemented
             if self.channels == 1:
-                batch_x[i] = data.reshape(self.data_shape + (self.channels,))
+                batch_x[i] = data.reshape(self.data_shape)
             else:
-                batch_x[i] = data.reshape(self.data_shape + (1,))
+                # TODO: duplicate the data value 'channels' times 
+                batch_x[i] = data.reshape(self.data_shape)
             
             batch_y[i] = self.label_dict[id][self.zone-1]
 

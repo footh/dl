@@ -1,6 +1,8 @@
 import numpy as np
-import tensorflow as tf
-from keras.backend.tensorflow_backend import set_session
+
+#import tensorflow as tf
+#from keras.backend.tensorflow_backend import set_session
+
 from keras.applications.vgg16 import VGG16
 from keras.models import Model, Sequential
 from keras.layers import Input, Conv2D, Flatten, Dense, Dropout, TimeDistributed, LSTM
@@ -15,13 +17,14 @@ import datetime
 import os
 
 # NOTES:
-# All models will have an input_shape argument that includes the channel. Ex. (5, 80, 180, 1)
+# All models will have an input_shape argument that includes the channel. Ex. (5, 80, 180, 1) or (5, 1, 80, 180)
 
 class PScreeningModel():
     def __init__(self):
-        config = tf.ConfigProto()
-        config.gpu_options.allow_growth = True
-        set_session(tf.Session(config=config))
+        #config = tf.ConfigProto()
+        #config.gpu_options.allow_growth = True
+        #set_session(tf.Session(config=config))
+        print('noop')
 
 
 class VGG16Model(PScreeningModel):
@@ -95,24 +98,25 @@ def get_batches(src, zone, data_shape, batch_size=20, shuffle=True):
              
 def train(model, zone, epochs=1, batch_size=20, learning_rate=0.001, version=None):
     data_shape = sd.zones_max_dict(round_up=True)[zone]
-    # Assuming one-channel inputs for now.
-    model.create(input_shape=data_shape + (1,))
-    model.compile(lr=learning_rate)
-    
+
     train_batches = get_batches('train', zone, data_shape, batch_size=batch_size, shuffle=True)
     steps_per_epoch = math.ceil(train_batches.samples / train_batches.batch_size)
     print(f"training sample size: {train_batches.samples}")
     print(f"training batch size: {train_batches.batch_size}, steps: {steps_per_epoch}")
 
-    val_batches = get_batches('valid', zone, data_shape, batch_size=batch_size, shuffle=True)
+    val_batches = get_batches('valid', zone, data_shape, batch_size=batch_size, shuffle=True)    
     validation_steps = math.ceil(val_batches.samples / val_batches.batch_size)
     print(f"validation sample size: {val_batches.samples}")
     print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
+    
+    print(f"model data_shape: {train_batches.data_shape}")
+    model.create(input_shape=train_batches.data_shape)
+    model.compile(lr=learning_rate)
  
     model.model.fit_generator(train_batches,
                               steps_per_epoch=steps_per_epoch,
                               epochs=epochs,
-                      g        validation_data=val_batches, 
+                              validation_data=val_batches, 
                               validation_steps=validation_steps)
     
     weights_version = f"zone{zone}-{model.name}-e{epochs}-bs{batch_size}-lr{str(learning_rate).split('.')[1]}"
