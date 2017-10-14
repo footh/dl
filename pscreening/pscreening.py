@@ -137,14 +137,15 @@ def train(model, zone, epochs=1, batch_size=20, learning_rate=0.001, version=Non
 
 def test(model, zone, batch_size=10, weights_file=None, evaluate=False):
     data_shape = sd.zones_max_dict(round_up=True)[zone]
-    # Assuming one-channel inputs for now.
-    model.create(input_shape=data_shape + (1,))
-    model.compile()
 
     test_batches = get_batches('test', zone, data_shape, batch_size=batch_size, shuffle=False)
     test_steps = math.ceil(test_batches.samples / test_batches.batch_size)
     print(f"test sample size: {test_batches.samples}")
     print(f"test batch size: {test_batches.batch_size}, steps: {test_steps}")
+
+    # Assuming one-channel inputs for now.
+    model.create(input_shape=test_batches.data_shape)
+    model.compile()
 
     weights_file_path = os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, weights_file)
     model.model.load_weights(weights_file_path)
