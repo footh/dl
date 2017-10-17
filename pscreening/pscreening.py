@@ -1,14 +1,13 @@
 import numpy as np
 
-#import tensorflow as tf
-#from keras.backend.tensorflow_backend import set_session
+import tensorflow as tf
 
-from keras import backend as K
-from keras.applications.vgg16 import VGG16
-from keras.models import Model, Sequential
-from keras.layers import Input, Conv2D, Flatten, Dense, Dropout, TimeDistributed, LSTM
-from keras.layers.normalization import BatchNormalization
-from keras.optimizers import Adam
+#from keras import backend as K
+#from tensorflow.contrib.keras.applications.vgg16 import VGG16
+#from tensorflow.contrib.keras.models import Model, Sequential
+#from tensorflow.contrib.keras.layers import Input, Conv2D, Flatten, Dense, Dropout, TimeDistributed, LSTM
+#from tensorflow.contrib.keras.layers.normalization import BatchNormalization
+#from tensorflow.contrib.keras.optimizers import Adam
 
 import config
 import setup_data as sd
@@ -22,9 +21,10 @@ import os
 
 class PScreeningModel():
     def __init__(self):
-        #config = tf.ConfigProto()
-        #config.gpu_options.allow_growth = True
-        #set_session(tf.Session(config=config))
+        #TODO: With native tensorflow, this will be different. Fix if needed or remove.
+        #cfg = tf.ConfigProto()
+        #cfg.gpu_options.allow_growth = True
+        #set_session(tf.Session(config=cfg))
         print('noop')
 
 
@@ -42,10 +42,7 @@ class VGG16Model(PScreeningModel):
         if input_shape is not None:
             self.input_shape = input_shape
             print(f"input_shape: {self.input_shape}")
-            if K.image_data_format() == 'channels_last':
-                vgg_shape = input_shape[1:3] + (3,)
-            else:
-                vgg_shape = (3,) + input_shape[2:]
+            vgg_shape = input_shape[1:3] + (3,)
             print(f"vgg_shape: {vgg_shape}")
         else:
             print(f"No input shape given. Model cannot be created")
@@ -54,39 +51,39 @@ class VGG16Model(PScreeningModel):
         #---------------------
         # Vision model creation for just one frame of the input data. This will be used in the TimeDistributed layer to consume all the frames.
         # This section will convert the 1-channel image into three channels. Got idea from here: http://forums.fast.ai/t/black-and-white-images-on-vgg16/2479/13
-        vision_model = Sequential()
-        vision_model.add(Conv2D(10, kernel_size=(1,1), padding='same', activation='relu', input_shape=(self.input_shape[1:])))
-        vision_model.add(Conv2D(3, kernel_size=(1,1), padding='same', activation='relu'))
+        vision_model = tf.contrib.keras.models.Sequential()
+        vision_model.add(tf.contrib.keras.layers.Conv2D(10, kernel_size=(1,1), padding='same', activation='relu', input_shape=(self.input_shape[1:])))
+        vision_model.add(tf.contrib.keras.layers.Conv2D(3, kernel_size=(1,1), padding='same', activation='relu'))
         
         # Now getting the vgg16 model with pre-trained weights for some transfer learning
         # Note on adding 'input_shape', if I didn't do this, the input shape would be (None, None, None, 3). This might be OK since it's a convnet but
         # I'd rather be explicit. I'm wondering why Keras doesn't figure out since it's added to an output of this shape?
-        vgg16_model = VGG16(weights='imagenet', include_top=False, input_shape=vgg_shape)
+        vgg16_model = tf.contrib.keras.applications.VGG16(weights='imagenet', include_top=False, input_shape=vgg_shape)
         # Freezing the weights for the pre-trained VGG16 model (TODO: should I let later layers be trained?)
         for layer in vgg16_model.layers:
             layer.trainable = False
         vision_model.add(vgg16_model)
-        vision_model.add(Flatten())
+        vision_model.add(tf.contrib.keras.layers.Flatten())
         #---------------------
         
-        frame_input = Input(shape=self.input_shape)
+        frame_input = tf.contrib.keras.layers.Input(shape=self.input_shape)
         # Now adding the TimeDistributed wrapper to the entire vision model. Output will be the of 
         # shape (num_frames, flattened output of vision model)
-        td_frame_sequence = TimeDistributed(vision_model)(frame_input)
+        td_frame_sequence = tf.contrib.keras.layers.TimeDistributed(vision_model)(frame_input)
         # Run the frames through an LSTM
-        lstm_output = LSTM(256)(td_frame_sequence)
+        lstm_output = tf.contrib.keras.layers.LSTM(256)(td_frame_sequence)
         # Add a dense layer similar to vgg16 (TODO: may not need this?)
-        x = Dense(4096, activation='relu')(lstm_output)
-        x = Dropout(0.5)(x)
+        x = tf.contrib.keras.layers.Dense(4096, activation='relu')(lstm_output)
+        x = tf.contrib.keras.layers.Dropout(0.5)(x)
         #x = BatchNormalization()(x)
-        predictions = Dense(1, activation = 'sigmoid')(x)
+        predictions = tf.contrib.keras.layers.Dense(1, activation = 'sigmoid')(x)
         
-        self.model = Model(inputs=frame_input, outputs=predictions)
+        self.model = tf.contrib.keras.models.Model(inputs=frame_input, outputs=predictions)
         
         self.model.summary()
         
     def compile(self, lr=0.001):
-        self.model.compile(optimizer=Adam(lr=lr), loss='binary_crossentropy', metrics=['accuracy'])
+        self.model.compile(optimizer=tf.contrib.keras.optimizers.Adam(lr=lr), loss='binary_crossentropy', metrics=['accuracy'])
         
 
 def get_batches(src, zone, data_shape, batch_size=20, shuffle=True):
@@ -158,6 +155,6 @@ def test(model, zone, batch_size=10, weights_file=None, evaluate=False):
 
     return results
 
-def vggtest():
-    vgg16_model = VGG16(weights='imagenet', include_top=False, input_shape=(80, 180, 3))
-    vgg16_model.summary()
+#def vggtest():
+#    vgg16_model = VGG16(weights='imagenet', include_top=False, input_shape=(80, 180, 3))
+#    vgg16_model.summary()

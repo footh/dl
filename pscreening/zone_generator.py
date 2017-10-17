@@ -3,7 +3,6 @@ import numpy as np
 import threading
 import multiprocessing.pool
 from functools import partial
-from keras import backend as K
 import setup_data as sd
 import scipy
 
@@ -212,7 +211,9 @@ class ZoneFileIterator(Iterator):
                  shuffle=True,
                  img_scale=True):
 
-        data_format = K.image_data_format()
+        # TODO: Using keras built into tensorflow, should remove this when I'm sure I won't switch to a channels_first framework
+        #data_format = K.image_data_format()
+        data_format = 'channels_last'
         if data_format == 'channels_last':
             self.data_shape = data_shape + (channels,)
         else:
@@ -267,7 +268,7 @@ class ZoneFileIterator(Iterator):
             index_array, current_index, current_batch_size = next(self.index_generator)
         # The transformation of images is not under thread lock
         # so it can be done in parallel
-        batch_x = np.zeros((current_batch_size,) + self.data_shape, dtype=K.floatx())
+        batch_x = np.zeros((current_batch_size,) + self.data_shape, dtype=np.float32)
         batch_y = np.zeros(current_batch_size)
         # build batch of image data
         for i, j in enumerate(index_array):
