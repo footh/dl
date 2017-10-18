@@ -21,11 +21,11 @@ import os
 
 class PScreeningModel():
     def __init__(self):
-        #TODO: With native tensorflow, this will be different. Fix if needed or remove.
-        #cfg = tf.ConfigProto()
-        #cfg.gpu_options.allow_growth = True
-        #set_session(tf.Session(config=cfg))
-        print('noop')
+        cfg = tf.ConfigProto()
+        cfg.gpu_options.allow_growth = True
+        cfg.log_device_placement = True
+        tf.contrib.keras.backend.set_session(tf.Session(config=cfg))
+        #print('noop')
 
 
 class VGG16Model(PScreeningModel):
