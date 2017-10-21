@@ -24,7 +24,14 @@ class PScreeningModel():
         cfg = tf.ConfigProto()
         cfg.gpu_options.allow_growth = True
         cfg.log_device_placement = True
-        tf.contrib.keras.backend.set_session(tf.Session(config=cfg))
+        
+        #greedy = tf.contrib.training.GreedyLoadBalancingStrategy(...)
+        #with tf.device(tf.train.replica_device_setter(ps_tasks=3, ps_strategy=greedy)):
+        self.cluster = tf.train.ClusterSpec({"local": ["localhost:2222"]})
+        server = tf.train.Server(self.cluster, job_name="local", task_index=0)
+        print(f"server.target: {server.target}")
+        session = tf.Session(target=server.target, config=cfg)
+        tf.contrib.keras.backend.set_session(session)
         #print('noop')
 
 
@@ -47,12 +54,8 @@ class VGG16Model(PScreeningModel):
         else:
             print(f"No input shape given. Model cannot be created")
             return
-        
-        #greedy = tf.contrib.training.GreedyLoadBalancingStrategy(...)
-        #with tf.device(tf.train.replica_device_setter(ps_tasks=3, ps_strategy=greedy)):
-        #cluster_spec = tf.train.ClusterSpec({"local": ["localhost:2222", "localhost:2223"]})
-        cluster_spec = None
-        with tf.device(tf.train.replica_device_setter(ps_tasks=2, cluster=cluster_spec)):
+                
+        with tf.device(tf.train.replica_device_setter(ps_tasks=1, cluster=self.cluster)):
             #---------------------
             # Vision model creation for just one frame of the input data. This will be used in the TimeDistributed layer to consume all the frames.
             # This section will convert the 1-channel image into three channels. Got idea from here: http://forums.fast.ai/t/black-and-white-images-on-vgg16/2479/13
