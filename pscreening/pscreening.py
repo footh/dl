@@ -47,38 +47,43 @@ class VGG16Model(PScreeningModel):
         else:
             print(f"No input shape given. Model cannot be created")
             return
-    
-        #---------------------
-        # Vision model creation for just one frame of the input data. This will be used in the TimeDistributed layer to consume all the frames.
-        # This section will convert the 1-channel image into three channels. Got idea from here: http://forums.fast.ai/t/black-and-white-images-on-vgg16/2479/13
-        vision_model = tf.contrib.keras.models.Sequential()
-        vision_model.add(tf.contrib.keras.layers.Conv2D(10, kernel_size=(1,1), padding='same', activation='relu', input_shape=(self.input_shape[1:])))
-        vision_model.add(tf.contrib.keras.layers.Conv2D(3, kernel_size=(1,1), padding='same', activation='relu'))
         
-        # Now getting the vgg16 model with pre-trained weights for some transfer learning
-        # Note on adding 'input_shape', if I didn't do this, the input shape would be (None, None, None, 3). This might be OK since it's a convnet but
-        # I'd rather be explicit. I'm wondering why Keras doesn't figure out since it's added to an output of this shape?
-        vgg16_model = tf.contrib.keras.applications.VGG16(weights='imagenet', include_top=False, input_shape=vgg_shape)
-        # Freezing the weights for the pre-trained VGG16 model (TODO: should I let later layers be trained?)
-        for layer in vgg16_model.layers:
-            layer.trainable = False
-        vision_model.add(vgg16_model)
-        vision_model.add(tf.contrib.keras.layers.Flatten())
-        #---------------------
-        
-        frame_input = tf.contrib.keras.layers.Input(shape=self.input_shape)
-        # Now adding the TimeDistributed wrapper to the entire vision model. Output will be the of 
-        # shape (num_frames, flattened output of vision model)
-        td_frame_sequence = tf.contrib.keras.layers.TimeDistributed(vision_model)(frame_input)
-        # Run the frames through an LSTM
-        lstm_output = tf.contrib.keras.layers.LSTM(256)(td_frame_sequence)
-        # Add a dense layer similar to vgg16 (TODO: may not need this?)
-        x = tf.contrib.keras.layers.Dense(4096, activation='relu')(lstm_output)
-        x = tf.contrib.keras.layers.Dropout(0.5)(x)
-        #x = BatchNormalization()(x)
-        predictions = tf.contrib.keras.layers.Dense(1, activation = 'sigmoid')(x)
-        
-        self.model = tf.contrib.keras.models.Model(inputs=frame_input, outputs=predictions)
+        #greedy = tf.contrib.training.GreedyLoadBalancingStrategy(...)
+        #with tf.device(tf.train.replica_device_setter(ps_tasks=3, ps_strategy=greedy)):
+        #cluster_spec = tf.train.ClusterSpec({"local": ["localhost:2222", "localhost:2223"]})
+        cluster_spec = None
+        with tf.device(tf.train.replica_device_setter(ps_tasks=2, cluster=cluster_spec)):
+            #---------------------
+            # Vision model creation for just one frame of the input data. This will be used in the TimeDistributed layer to consume all the frames.
+            # This section will convert the 1-channel image into three channels. Got idea from here: http://forums.fast.ai/t/black-and-white-images-on-vgg16/2479/13
+            vision_model = tf.contrib.keras.models.Sequential()
+            vision_model.add(tf.contrib.keras.layers.Conv2D(10, kernel_size=(1,1), padding='same', activation='relu', input_shape=(self.input_shape[1:])))
+            vision_model.add(tf.contrib.keras.layers.Conv2D(3, kernel_size=(1,1), padding='same', activation='relu'))
+            
+            # Now getting the vgg16 model with pre-trained weights for some transfer learning
+            # Note on adding 'input_shape', if I didn't do this, the input shape would be (None, None, None, 3). This might be OK since it's a convnet but
+            # I'd rather be explicit. I'm wondering why Keras doesn't figure out since it's added to an output of this shape?
+            vgg16_model = tf.contrib.keras.applications.VGG16(weights='imagenet', include_top=False, input_shape=vgg_shape)
+            # Freezing the weights for the pre-trained VGG16 model (TODO: should I let later layers be trained?)
+            for layer in vgg16_model.layers:
+                layer.trainable = False
+            vision_model.add(vgg16_model)
+            vision_model.add(tf.contrib.keras.layers.Flatten())
+            #---------------------
+            
+            frame_input = tf.contrib.keras.layers.Input(shape=self.input_shape)
+            # Now adding the TimeDistributed wrapper to the entire vision model. Output will be the of 
+            # shape (num_frames, flattened output of vision model)
+            td_frame_sequence = tf.contrib.keras.layers.TimeDistributed(vision_model)(frame_input)
+            # Run the frames through an LSTM
+            lstm_output = tf.contrib.keras.layers.LSTM(256)(td_frame_sequence)
+            # Add a dense layer similar to vgg16 (TODO: may not need this?)
+            x = tf.contrib.keras.layers.Dense(4096, activation='relu')(lstm_output)
+            x = tf.contrib.keras.layers.Dropout(0.5)(x)
+            #x = BatchNormalization()(x)
+            predictions = tf.contrib.keras.layers.Dense(1, activation = 'sigmoid')(x)
+            
+            self.model = tf.contrib.keras.models.Model(inputs=frame_input, outputs=predictions)
         
         self.model.summary()
         
@@ -116,23 +121,23 @@ def train(model, zone, epochs=1, batch_size=20, learning_rate=0.001, version=Non
     model.create(input_shape=train_batches.data_shape)
     model.compile(lr=learning_rate)
  
-    model.model.fit_generator(train_batches,
-                              steps_per_epoch=steps_per_epoch,
-                              epochs=epochs,
-                              validation_data=val_batches, 
-                              validation_steps=validation_steps)
-    
-    weights_version = f"zone{zone}-{model.name}-e{epochs}-bs{batch_size}-lr{str(learning_rate).split('.')[1]}"
-    weights_version += f"-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}" 
-    if version is not None:
-        weights_version += f"-{version}"
-        
-    weights_file = weights_version + '.h5'
-    model.model.save_weights(os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, weights_file))
-    
-    return weights_file
+#     model.model.fit_generator(train_batches,
+#                               steps_per_epoch=steps_per_epoch,
+#                               epochs=epochs,
+#                               validation_data=val_batches, 
+#                               validation_steps=validation_steps)
+#     
+#     weights_version = f"zone{zone}-{model.name}-e{epochs}-bs{batch_size}-lr{str(learning_rate).split('.')[1]}"
+#     weights_version += f"-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}" 
+#     if version is not None:
+#         weights_version += f"-{version}"
+#         
+#     weights_file = weights_version + '.h5'
+#     model.model.save_weights(os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, weights_file))
+#     
+#     return weights_file
 
-def test(model, zone, batch_size=10, weights_file=None, evaluate=False):
+def test(model, zone, batch_size=10, weights_file=None, evaluate=True):
     data_shape = sd.zones_max_dict(round_up=True)[zone]
 
     test_batches = get_batches('test', zone, data_shape, batch_size=batch_size, shuffle=False)
