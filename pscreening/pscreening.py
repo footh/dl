@@ -2,13 +2,6 @@ import numpy as np
 
 import tensorflow as tf
 
-#from keras import backend as K
-#from tensorflow.contrib.keras.applications.vgg16 import VGG16
-#from tensorflow.contrib.keras.models import Model, Sequential
-#from tensorflow.contrib.keras.layers import Input, Conv2D, Flatten, Dense, Dropout, TimeDistributed, LSTM
-#from tensorflow.contrib.keras.layers.normalization import BatchNormalization
-#from tensorflow.contrib.keras.optimizers import Adam
-
 import config
 import setup_data as sd
 import zone_generator
@@ -16,28 +9,35 @@ import math
 import datetime
 import os
 
+CLUSTER = {
+    "ps": ["localhost:2222"],
+    "worker": ["localhost:2223"]
+}
+
+
 # NOTES:
 # All models will have an input_shape argument that includes the channel. Ex. (5, 80, 180, 1) or (5, 1, 80, 180)
 
 class PScreeningModel():
-    def __init__(self):
-        cfg = tf.ConfigProto()
-        cfg.gpu_options.allow_growth = True
-        cfg.log_device_placement = True
+    def __init__(self, job_name, task_index):
+        self.cluster_spec = tf.train.ClusterSpec(CLUSTER)  
         
-        #greedy = tf.contrib.training.GreedyLoadBalancingStrategy(...)
-        #with tf.device(tf.train.replica_device_setter(ps_tasks=3, ps_strategy=greedy)):
-        self.cluster = tf.train.ClusterSpec({"local": ["localhost:2222"]})
-        server = tf.train.Server(self.cluster, job_name="local", task_index=0)
+        server = tf.train.Server(self.cluster_spec, job_name=job_name, task_index=task_index)
         print(f"server.target: {server.target}")
-        session = tf.Session(target=server.target, config=cfg)
-        tf.contrib.keras.backend.set_session(session)
-        #print('noop')
 
+        if job_name == 'ps':
+            server.join()
+        elif job_name == 'worker':
+            cfg = tf.ConfigProto()
+            cfg.gpu_options.allow_growth = True
+            cfg.log_device_placement = True
+    
+            session = tf.Session(target=server.target, config=cfg)
+            tf.contrib.keras.backend.set_session(session)
 
 class VGG16Model(PScreeningModel):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args):
+        super().__init__(*args)
         self.input_shape = None
         self.name = 'vgg16'
 
@@ -55,7 +55,9 @@ class VGG16Model(PScreeningModel):
             print(f"No input shape given. Model cannot be created")
             return
                 
-        with tf.device(tf.train.replica_device_setter(ps_tasks=1, cluster=self.cluster)):
+        #greedy = tf.contrib.training.GreedyLoadBalancingStrategy(...)
+        #with tf.device(tf.train.replica_device_setter(ps_tasks=3, ps_strategy=greedy)):
+        with tf.device(tf.train.replica_device_setter(cluster=self.cluster_spec)):
             #---------------------
             # Vision model creation for just one frame of the input data. This will be used in the TimeDistributed layer to consume all the frames.
             # This section will convert the 1-channel image into three channels. Got idea from here: http://forums.fast.ai/t/black-and-white-images-on-vgg16/2479/13
@@ -108,7 +110,11 @@ def get_batches(src, zone, data_shape, batch_size=20, shuffle=True):
                                   batch_size=batch_size,
                                   shuffle=shuffle)
              
-def train(model, zone, epochs=1, batch_size=20, learning_rate=0.001, version=None):
+def start_ps():
+    ps_model = VGG16Model('ps', 0)
+
+
+def train(zone, epochs=1, batch_size=20, learning_rate=0.001, version=None):
     data_shape = sd.zones_max_dict(round_up=True)[zone]
 
     train_batches = get_batches('train', zone, data_shape, batch_size=batch_size, shuffle=True)
@@ -121,24 +127,26 @@ def train(model, zone, epochs=1, batch_size=20, learning_rate=0.001, version=Non
     print(f"validation sample size: {val_batches.samples}")
     print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
     
-    model.create(input_shape=train_batches.data_shape)
-    model.compile(lr=learning_rate)
+    wkr_model = VGG16Model('worker', 0)
+    
+    wkr_model.create(input_shape=train_batches.data_shape)
+    wkr_model.compile(lr=learning_rate)
  
-#     model.model.fit_generator(train_batches,
-#                               steps_per_epoch=steps_per_epoch,
-#                               epochs=epochs,
-#                               validation_data=val_batches, 
-#                               validation_steps=validation_steps)
-#     
-#     weights_version = f"zone{zone}-{model.name}-e{epochs}-bs{batch_size}-lr{str(learning_rate).split('.')[1]}"
-#     weights_version += f"-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}" 
-#     if version is not None:
-#         weights_version += f"-{version}"
-#         
-#     weights_file = weights_version + '.h5'
-#     model.model.save_weights(os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, weights_file))
-#     
-#     return weights_file
+    wkr_model.model.fit_generator(train_batches,
+                                  steps_per_epoch=steps_per_epoch,
+                                  epochs=epochs,
+                                  validation_data=val_batches, 
+                                  validation_steps=validation_steps)
+     
+    weights_version = f"zone{zone}-{wkr_model.name}-e{epochs}-bs{batch_size}-lr{str(learning_rate).split('.')[1]}"
+    weights_version += f"-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}" 
+    if version is not None:
+        weights_version += f"-{version}"
+         
+    weights_file = weights_version + '.h5'
+    wkr_model.model.save_weights(os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, weights_file))
+     
+    return weights_file
 
 def test(model, zone, batch_size=10, weights_file=None, evaluate=True):
     data_shape = sd.zones_max_dict(round_up=True)[zone]
