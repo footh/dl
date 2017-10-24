@@ -166,9 +166,9 @@ def multi_gpu_model(model, gpus):
                 # Retrieve a slice of the input.
                 for x in model.inputs:
                     input_shape = tuple(x.get_shape().as_list())[1:]
-                    slice_i = tf.contrib.layers.core.Lambda(get_slice, 
-                                                            output_shape=input_shape,
-                                                            arguments={'i': i,'parts': gpus})(x)
+                    slice_i = tf.contrib.layers.Lambda(get_slice, 
+                                                       output_shape=input_shape,
+                                                       arguments={'i': i,'parts': gpus})(x)
                     inputs.append(slice_i)
 
                 # Apply model on slice
