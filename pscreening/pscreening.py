@@ -110,7 +110,7 @@ def train(zone, epochs=1, batch_size=20, learning_rate=0.001, version=None, gpus
     
     wkr_model = VGG16Model()
     if gpus is not None:
-        wkr_model = tf_util.multi_gpu_support(wkr_model, gpus)
+        wkr_model = tf_util.multi_gpu_model(wkr_model, gpus)
     
     #TODO: create the model with None as the time dimension? When looking at the code it looked like TimeDistributed
     #acts differently when None is passed as opposed to a fixed dimension. 
