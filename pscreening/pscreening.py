@@ -26,8 +26,8 @@ class PScreeningModel():
         self.gpus = gpus
 
 class VGG16Model(PScreeningModel):
-    def __init__(self, *args):
-        super().__init__(*args)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.input_shape = None
         self.name = 'vgg16'
 
