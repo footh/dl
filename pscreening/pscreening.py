@@ -15,13 +15,15 @@ import tf_util
 # All models will have an input_shape argument that includes the channel. Ex. (5, 80, 180, 1) or (5, 1, 80, 180)
 
 class PScreeningModel():
-    def __init__(self):
+    def __init__(self, gpus=None):
         cfg = tf.ConfigProto()
         cfg.gpu_options.allow_growth = True
         cfg.log_device_placement = True
 
         session = tf.Session(config=cfg)
         tf.contrib.keras.backend.set_session(session)
+        
+        self.gpus = gpus
 
 class VGG16Model(PScreeningModel):
     def __init__(self, *args):
@@ -74,13 +76,14 @@ class VGG16Model(PScreeningModel):
         predictions = tf.contrib.keras.layers.Dense(1, activation = 'sigmoid')(x)
         
         self.model = tf.contrib.keras.models.Model(inputs=frame_input, outputs=predictions)
+        if self.gpus is not None:
+            self.model = tf_util.multi_gpu_model(self.model, self.gpus)
         
         self.model.summary()
         
     def compile(self, lr=0.001):
         self.model.compile(optimizer=tf.contrib.keras.optimizers.Adam(lr=lr), loss='binary_crossentropy', metrics=['accuracy'])
         
-
 def get_batches(src, zone, data_shape, batch_size=20, shuffle=True):
     """
         Get generator for files in src (train, valid, test, etc.) for given zone.
@@ -108,9 +111,7 @@ def train(zone, epochs=1, batch_size=20, learning_rate=0.001, version=None, gpus
     print(f"validation sample size: {val_batches.samples}")
     print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
     
-    wkr_model = VGG16Model()
-    if gpus is not None:
-        wkr_model = tf_util.multi_gpu_model(wkr_model, gpus)
+    wkr_model = VGG16Model(gpus=gpus)
     
     #TODO: create the model with None as the time dimension? When looking at the code it looked like TimeDistributed
     #acts differently when None is passed as opposed to a fixed dimension. 
