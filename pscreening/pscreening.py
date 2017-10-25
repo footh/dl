@@ -126,7 +126,7 @@ def train(zone, epochs=1, batch_size=20, learning_rate=0.001, version=None, gpus
                                   epochs=epochs,
                                   validation_data=val_batches, 
                                   validation_steps=validation_steps,
-                                  class_weights={0:0.1, 1:0.90})
+                                  class_weight={0:0.1, 1:0.90})
      
     weights_version = f"zone{zone}-{wkr_model.name}-e{epochs}-bs{batch_size}-lr{str(learning_rate).split('.')[1]}"
     weights_version += f"-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}" 
