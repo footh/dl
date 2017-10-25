@@ -138,7 +138,7 @@ def train(zone, epochs=1, batch_size=20, learning_rate=0.001, version=None, gpus
      
     return weights_file
 
-def test(model, zone, batch_size=10, weights_file=None, evaluate=True):
+def test(zone, batch_size=10, weights_file=None, evaluate=True):
     data_shape = sd.zones_max_dict(round_up=True)[zone]
 
     test_batches = get_batches('test', zone, data_shape, batch_size=batch_size, shuffle=False)
@@ -147,6 +147,7 @@ def test(model, zone, batch_size=10, weights_file=None, evaluate=True):
     print(f"test batch size: {test_batches.batch_size}, steps: {test_steps}")
 
     # Assuming one-channel inputs for now.
+    model = VGG16Model(gpus=gpus)
     model.create(input_shape=test_batches.data_shape)
     model.compile()
 
