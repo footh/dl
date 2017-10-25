@@ -66,14 +66,16 @@ class VGG16Model(PScreeningModel):
         frame_input = tf.contrib.keras.layers.Input(shape=self.input_shape)
         # Now adding the TimeDistributed wrapper to the entire vision model. Output will be the of 
         # shape (num_frames, flattened output of vision model)
-        td_frame_sequence = tf.contrib.keras.layers.TimeDistributed(vision_model)(frame_input)
-        # Run the frames through an LSTM
-        lstm_output = tf.contrib.keras.layers.LSTM(256)(td_frame_sequence)
-        # Add a dense layer similar to vgg16 (TODO: may not need this?)
-        x = tf.contrib.keras.layers.Dense(4096, activation='relu')(lstm_output)
-        x = tf.contrib.keras.layers.Dropout(0.5)(x)
-        #x = BatchNormalization()(x)
-        predictions = tf.contrib.keras.layers.Dense(1, activation = 'sigmoid')(x)
+        with tf.device("/gpu:0")
+            td_frame_sequence = tf.contrib.keras.layers.TimeDistributed(vision_model)(frame_input)
+        with tf.device("/gpu:1")
+            # Run the frames through an LSTM
+            lstm_output = tf.contrib.keras.layers.LSTM(256)(td_frame_sequence)
+            # Add a dense layer similar to vgg16 (TODO: may not need this?)
+            x = tf.contrib.keras.layers.Dense(4096, activation='relu')(lstm_output)
+            x = tf.contrib.keras.layers.Dropout(0.5)(x)
+            #x = BatchNormalization()(x)
+            predictions = tf.contrib.keras.layers.Dense(1, activation = 'sigmoid')(x)
         
         self.model = tf.contrib.keras.models.Model(inputs=frame_input, outputs=predictions)
         if self.gpus is not None:
