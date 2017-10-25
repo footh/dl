@@ -19,6 +19,7 @@ class PScreeningModel():
         cfg = tf.ConfigProto()
         cfg.gpu_options.allow_growth = True
         cfg.log_device_placement = True
+        cfg.allow_soft_placement=True
 
         session = tf.Session(config=cfg)
         tf.contrib.keras.backend.set_session(session)
