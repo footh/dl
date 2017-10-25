@@ -66,9 +66,9 @@ class VGG16Model(PScreeningModel):
         frame_input = tf.contrib.keras.layers.Input(shape=self.input_shape)
         # Now adding the TimeDistributed wrapper to the entire vision model. Output will be the of 
         # shape (num_frames, flattened output of vision model)
-        with tf.device("/gpu:0")
+        with tf.device("/gpu:0"):
             td_frame_sequence = tf.contrib.keras.layers.TimeDistributed(vision_model)(frame_input)
-        with tf.device("/gpu:1")
+        with tf.device("/gpu:1"):
             # Run the frames through an LSTM
             lstm_output = tf.contrib.keras.layers.LSTM(256)(td_frame_sequence)
             # Add a dense layer similar to vgg16 (TODO: may not need this?)
