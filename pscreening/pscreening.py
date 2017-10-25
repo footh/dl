@@ -147,7 +147,7 @@ def test(zone, batch_size=10, weights_file=None, evaluate=True):
     print(f"test batch size: {test_batches.batch_size}, steps: {test_steps}")
 
     # Assuming one-channel inputs for now.
-    model = VGG16Model(gpus=gpus)
+    model = VGG16Model()
     model.create(input_shape=test_batches.data_shape)
     model.compile()
 
