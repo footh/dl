@@ -121,7 +121,7 @@ def setup_data(num_valid=None, num_test=None, ext='aps'):
     print('Copying %s training files' % (labeled_count - (valid_count + test_count)))
     __copy_files(shuffled_files[(valid_count + test_count):], all_src_dir, train_dir, ext=ext)
 
-def points_file(src='train', padding=False):
+def points_file(src='train', zones=[1,3,5,6,7,8,9,10,11,12,17], padding=False):
     """
         Creates points file for the given 'src' files ('train', 'valid', 'test', etc)
     """
@@ -136,17 +136,17 @@ def points_file(src='train', padding=False):
             print(f"Reading file {f}...")
             file_images = util.read_data(f, as_images=True)
             print(f"Creating zones...")
-            zones = z.create_zones16(file_images)
+            zone_rects = z.create_zones16(file_images)
             if padding:
-                zones_config.apply_padding(zones)
+                zones_config.apply_padding(zone_rects)
             print(f"Write record...")
             for i in range(16):
-                row = [[f], [i], list(zones[i][5]), list(zones[i][6]), list(zones[i][7]), list(zones[i][8]), list(zones[i][9]), list(zones[i][10]), list(zones[i][17])]
+                row = [[f], [i]] + [list(zone_rects[i][j]) for j in zones]
                 row = [val for sublist in row for val in sublist]
                 writer.writerow(row)
             print(f"Record #{f_count} completed")
     
-def zones_max_dict(file='points-all.csv', slice_count=16, zones=[5,6,7,8,9,10,17], area_threshold=0, round_up=False):
+def zones_max_dict(file='points-all.csv', slice_count=16, zones=[1,3,5,6,7,8,9,10,11,12,17], area_threshold=0, round_up=False):
     """
         Returns a dict of zone => 3-tuple of (valid_slices, max_height, max_width)
         Calculates these values from the passed in points file
@@ -184,7 +184,7 @@ def zones_max_dict(file='points-all.csv', slice_count=16, zones=[5,6,7,8,9,10,17
                            
         return zones_max
     
-def extract_zones(src='train', sample_file='points-all.csv', slice_count=16, zones=[5,6,7,8,9,10,17], area_threshold=0, overwrite=True):
+def extract_zones(src='train', sample_file='points-all.csv', slice_count=16, zones=[1,3,5,6,7,8,9,10,11,12,17], area_threshold=0, overwrite=True):
     """
         For zones 'src', uses the associated points file to extract the zones and save them as numpy arrays in a directory by zone 
     """
