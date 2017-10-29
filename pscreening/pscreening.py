@@ -24,69 +24,95 @@ class PScreeningModel():
         session = tf.Session(config=cfg)
         tf.contrib.keras.backend.set_session(session)
         
+        self.input_shape = None
         self.gpus = gpus
 
-class VGG16Model(PScreeningModel):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.input_shape = None
-        self.name = 'vgg16'
-
+    def get_image_model(self, input_shape):
+        """
+            Children will implement this and return full image model
+        """
+        raise NotImplementedError
+    
     def create(self, input_shape=None):
         """
             Build the model and display the summary
         """
-        vgg_shape = None
+        img_shape = None
         if input_shape is not None:
             self.input_shape = input_shape
             print(f"input_shape: {self.input_shape}")
-            vgg_shape = input_shape[1:3] + (3,)
-            print(f"vgg_shape: {vgg_shape}")
+            img_shape = input_shape[1:3] + (3,)
+            print(f"vgg_shape: {img_shape}")
         else:
             print(f"No input shape given. Model cannot be created")
             return
-                
+
         #---------------------
         # Vision model creation for just one frame of the input data. This will be used in the TimeDistributed layer to consume all the frames.
         # This section will convert the 1-channel image into three channels. Got idea from here: http://forums.fast.ai/t/black-and-white-images-on-vgg16/2479/13
         vision_model = tf.contrib.keras.models.Sequential()
         vision_model.add(tf.contrib.keras.layers.Conv2D(10, kernel_size=(1,1), padding='same', activation='relu', input_shape=(self.input_shape[1:])))
         vision_model.add(tf.contrib.keras.layers.Conv2D(3, kernel_size=(1,1), padding='same', activation='relu'))
-        
-        # Now getting the vgg16 model with pre-trained weights for some transfer learning
-        # Note on adding 'input_shape', if I didn't do this, the input shape would be (None, None, None, 3). This might be OK since it's a convnet but
-        # I'd rather be explicit. I'm wondering why Keras doesn't figure out since it's added to an output of this shape?
-        vgg16_model = tf.contrib.keras.applications.VGG16(weights='imagenet', include_top=False, input_shape=vgg_shape)
-        # Freezing the weights for the pre-trained VGG16 model (TODO: should I let later layers be trained?)
-        for layer in vgg16_model.layers:
-            layer.trainable = False
-        vision_model.add(vgg16_model)
+
+        # Now getting the image model with pre-trained weights for some transfer learning. Implemented by child classes.
+        img_model = self.get_image_model(img_shape)
+
+        vision_model.add(img_model)
         vision_model.add(tf.contrib.keras.layers.Flatten())
         #---------------------
         
         frame_input = tf.contrib.keras.layers.Input(shape=self.input_shape)
         # Now adding the TimeDistributed wrapper to the entire vision model. Output will be the of 
         # shape (num_frames, flattened output of vision model)
-        with tf.device("/gpu:0"):
-            td_frame_sequence = tf.contrib.keras.layers.TimeDistributed(vision_model)(frame_input)
-        with tf.device("/gpu:1"):
-            # Run the frames through an LSTM
-            lstm_output = tf.contrib.keras.layers.LSTM(256)(td_frame_sequence)
-            # Add a dense layer similar to vgg16 (TODO: may not need this?)
-            x = tf.contrib.keras.layers.Dense(4096, activation='relu')(lstm_output)
-            x = tf.contrib.keras.layers.Dropout(0.5)(x)
-            #x = BatchNormalization()(x)
-            predictions = tf.contrib.keras.layers.Dense(1, activation = 'sigmoid')(x)
+        td_frame_sequence = tf.contrib.keras.layers.TimeDistributed(vision_model)(frame_input)
+        # Run the frames through an LSTM
+        lstm_output = tf.contrib.keras.layers.LSTM(256)(td_frame_sequence)
+        # Add a dense layer similar to vgg16 (TODO: may not need this?)
+        x = tf.contrib.keras.layers.Dense(4096, activation='relu')(lstm_output)
+        x = tf.contrib.keras.layers.Dropout(0.5)(x)
+        #x = BatchNormalization()(x)
+        predictions = tf.contrib.keras.layers.Dense(1, activation = 'sigmoid')(x)
         
         self.model = tf.contrib.keras.models.Model(inputs=frame_input, outputs=predictions)
         if self.gpus is not None:
             self.model = tf_util.multi_gpu_model(self.model, self.gpus)
         
         self.model.summary()
-        
+
     def compile(self, lr=0.001):
         self.model.compile(optimizer=tf.contrib.keras.optimizers.Adam(lr=lr), loss='binary_crossentropy', metrics=['accuracy'])
+ 
+
+class InceptionModel(PScreeningModel):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.name = 'inception'
+
+    def get_image_model(self, img_shape):
+        # Note on adding 'input_shape', if I didn't do this, the input shape would be (None, None, None, 3). This might be OK since it's a convnet but
+        # I'd rather be explicit. I'm wondering why Keras doesn't figure out since it's added to an output of this shape?
+        inception_model = tf.contrib.keras.applications.InceptionV3(weights='imagenet', include_top=False, input_shape=img_shape)
+        # Freezing the weights for the pre-trained VGG16 model (TODO: should I let later layers be trained?)
+        for layer in inception_model.layers:
+            layer.trainable = False
+
+        return inception_model
+
+class VGG16Model(PScreeningModel):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.name = 'vgg16'
         
+    def get_image_model(self, img_shape):
+        # Note on adding 'input_shape', if I didn't do this, the input shape would be (None, None, None, 3). This might be OK since it's a convnet but
+        # I'd rather be explicit. I'm wondering why Keras doesn't figure out since it's added to an output of this shape?
+        vgg16_model = tf.contrib.keras.applications.VGG16(weights='imagenet', include_top=False, input_shape=img_shape)
+        # Freezing the weights for the pre-trained VGG16 model (TODO: should I let later layers be trained?)
+        for layer in vgg16_model.layers:
+            layer.trainable = False
+
+        return vgg16_model
+       
 def get_batches(src, zone, data_shape, batch_size=20, shuffle=True):
     """
         Get generator for files in src (train, valid, test, etc.) for given zone.
