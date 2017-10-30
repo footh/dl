@@ -127,7 +127,7 @@ def get_batches(src, zone, data_shape, batch_size=20, shuffle=True):
                                   batch_size=batch_size,
                                   shuffle=shuffle)
              
-def train(zone, epochs=1, batch_size=20, learning_rate=0.001, version=None, gpus=None):
+def train(zone, epochs=1, batch_size=20, learning_rate=0.001, version=None, gpus=None, mtype='vgg16'):
     data_shape = sd.zones_max_dict(round_up=True)[zone]
 
     train_batches = get_batches('train', zone, data_shape, batch_size=batch_size, shuffle=True)
@@ -140,7 +140,11 @@ def train(zone, epochs=1, batch_size=20, learning_rate=0.001, version=None, gpus
     print(f"validation sample size: {val_batches.samples}")
     print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
     
-    wkr_model = VGG16Model(gpus=gpus)
+    wkr_model = None
+    if mtype == 'inception':
+        wkr_model = InceptionModel(gpus=gpus)
+    else:
+        wkr_model = VGG16Model(gpus=gpus)
     
     #TODO: create the model with None as the time dimension? When looking at the code it looked like TimeDistributed
     #acts differently when None is passed as opposed to a fixed dimension. 
