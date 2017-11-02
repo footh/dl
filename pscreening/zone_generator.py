@@ -269,7 +269,7 @@ class ZoneFileIterator(Iterator):
         # The transformation of images is not under thread lock
         # so it can be done in parallel
         batch_x = np.zeros((current_batch_size,) + self.data_shape, dtype=np.float32)
-        batch_y = np.zeros(current_batch_size)
+        batch_y = np.zeros(current_batch_size, dtype=np.float32)
         # build batch of image data
         for i, j in enumerate(index_array):
             fname = self.filenames[j]
