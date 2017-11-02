@@ -106,6 +106,7 @@ class VGG16Model(PScreeningModel):
     def get_image_model(self, img_shape):
         # Note on adding 'input_shape', if I didn't do this, the input shape would be (None, None, None, 3). This might be OK since it's a convnet but
         # I'd rather be explicit. I'm wondering why Keras doesn't figure out since it's added to an output of this shape?
+        #TODO: look into the pooling argument here!!!
         vgg16_model = tf.contrib.keras.applications.VGG16(weights='imagenet', include_top=False, input_shape=img_shape)
         # Freezing the weights for the pre-trained VGG16 model (TODO: should I let later layers be trained?)
         for layer in vgg16_model.layers:
@@ -192,6 +193,6 @@ def test(zone, batch_size=10, weights_file=None, evaluate=True):
 
     return results
 
-#def vggtest():
-#    vgg16_model = VGG16(weights='imagenet', include_top=False, input_shape=(80, 180, 3))
-#    vgg16_model.summary()
+def vggtest():
+    vgg16_model = tf.contrib.keras.applications.VGG16(weights='imagenet', include_top=False, input_shape=(80, 180, 3), pooling='avg')
+    vgg16_model.summary()
