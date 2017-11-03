@@ -208,7 +208,7 @@ def multi_gpu_model(model, gpus):
                     # x: Tensor("input_2:0", shape=(?, 5, 80, 180, 1), dtype=float32)
                     print(f"x: {x}")
                     #input_shape = tuple(x.get_shape().as_list())[1:]
-                    slice_i = tf.contrib.keras.layers.Lambda(get_slice, 
+                    slice_i = tf.contrib.keras.layers.Lambda(get_slice2, 
                                                              #output_shape=input_shape,
                                                              arguments={'i': i,'parts': gpus})(x)
                     inputs.append(slice_i)
