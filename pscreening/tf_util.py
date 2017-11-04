@@ -45,6 +45,25 @@ import tensorflow as tf
 
 py_all = all
 
+def is_sparse(tensor):
+    """Returns whether a tensor is a sparse tensor.
+    # Arguments
+        tensor: A tensor instance.
+    # Returns
+        A boolean.
+    # Example
+    ```python
+        >>> from keras import backend as K
+        >>> a = K.placeholder((2, 2), sparse=False)
+        >>> print(K.is_sparse(a))
+        False
+        >>> b = K.placeholder((2, 2), sparse=True)
+        >>> print(K.is_sparse(b))
+        True
+    ```
+    """
+    return isinstance(tensor, tf.SparseTensor)
+
 def to_dense(tensor):
     """Converts a sparse tensor into a dense tensor and returns it.
     # Arguments
