@@ -11,6 +11,9 @@ import config
 import zones as z
 import zones_config
 
+def sample_id_from_file(file_name):
+    return os.path.basename(file_name).split('.')[0]
+
 def label_dict(label_file='stage1_labels.csv'):
     """
         Reads the label file and returns a dict of {id: [array of 0s and 1s]}. Index of label is (zone - 1).
@@ -151,7 +154,7 @@ def zones_max_dict(file='points-all.csv', slice_count=16, zones=[1,3,5,6,7,8,9,1
         Returns a dict of zone => 3-tuple of (valid_slices, max_height, max_width)
         Calculates these values from the passed in points file
     """
-    file = os.path.join(config.PSCREENING_HOME, file)    
+    file = os.path.join(config.PSCREENING_HOME, file)
     with open(file, newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')
         all_rows = np.array(list(reader))
@@ -203,7 +206,7 @@ def extract_zones(src='train', sample_file='points-all.csv', slice_count=16, zon
         for row in all_rows:
 
             file_data = util.read_data(row[0, 0])
-            id = os.path.basename(row[0, 0]).split('.')[0]
+            id = sample_id_from_file(row[0, 0])
             for i in range(len(zones)):
                 file_name = os.path.join(full_dest_dir, str(zones[i]), id) + '.npy'
                 if not overwrite and os.path.exists(file_name):
@@ -228,4 +231,27 @@ def extract_zones(src='train', sample_file='points-all.csv', slice_count=16, zon
             
             cnt += 1
             print(f"Finished row {cnt}")
+
+def generate_points_files(all_file='points-all.csv', dirs=['train', 'valid', 'test', 'submission'], slice_count=16):
+    
+    
+    all_file = os.path.join(config.PSCREENING_HOME, all_file)
+    sample_dict = {}
+    with open(all_file, newline='') as csvfile:
+        reader = csv.reader(csvfile, delimiter=',') 
+        all_rows = np.array(list(reader))
+        sample_chunks = all_rows.reshape(all_rows.shape[0] // slice_count, slice_count, all_rows.shape[1])
+        
+        for sample_chunk in sample_chunks:
+            id = sample_id_from_file(sample_chunk[0, 0])
+            sample_dict[id] = sample_chunk
+    
+    for dir in dirs:
+        ids = [sample_id_from_file(f) for f in shuffled_files(dir)]
+        
+        return sample_dict, ids
+        
+    
+    
+
 
