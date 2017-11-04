@@ -120,63 +120,18 @@ def multi_gpu_model(model, gpus):
                                           available_devices))
 
     def get_slice(data, i, parts):
-#         data: Tensor("input_2:0", shape=(?, 5, 80, 180, 1), dtype=float32)
-#         i: 0
-#         parts: 2
-
-#         shape: Tensor("replica_0/lambda/Shape:0", shape=(5,), dtype=int32, device=/device:GPU:0)
-#         batch_size: Tensor("replica_0/lambda/strided_slice:0", shape=(1,), dtype=int32, device=/device:GPU:0)
-#         input_shape: Tensor("replica_0/lambda/strided_slice_1:0", shape=(4,), dtype=int32, device=/device:GPU:0)
-#         step: Tensor("replica_0/lambda/floordiv:0", shape=(1,), dtype=int32, device=/device:GPU:0)
-#         size(1): Tensor("replica_0/lambda/floordiv:0", shape=(1,), dtype=int32, device=/device:GPU:0)
-#         size(2): Tensor("replica_0/lambda/concat:0", shape=(5,), dtype=int32, device=/device:GPU:0)
-#         stride: Tensor("replica_0/lambda/concat_1:0", shape=(5,), dtype=int32, device=/device:GPU:0)
-#         start: Tensor("replica_0/lambda/mul_1:0", shape=(5,), dtype=int32, device=/device:GPU:0)
-        
-        print(f"data: {data}")
-        print(f"i: {i}")
-        print(f"parts: {parts}")
         shape = tf.shape(data)
-        print(f"shape: {shape}")
         batch_size = shape[:1]
-        print(f"batch_size: {batch_size}")
         input_shape = shape[1:]
-        print(f"input_shape: {input_shape}")
         step = batch_size // parts
-        print(f"step: {step}")
         if i == gpus - 1:
             size = batch_size - step * i
         else:
             size = step
-        print(f"size(1): {size}")
         size = tf.concat([size, input_shape], axis=0)
-        print(f"size(2): {size}")
         stride = tf.concat([step, input_shape * 0], axis=0)
-        print(f"stride: {stride}")
         start = stride * i
-        print(f"start: {start}")
         return tf.slice(data, start, size)
-    
-    def get_slice2(data, i, parts):
-        # x: Tensor("input_2:0", shape=(?, 5, 80, 180, 1), dtype=float32)
-        # step: 10
-        # size(1): 10
-        # start: 0
-        # range(start, start+size: range(0, 10)
-        # slice_i: Tensor("replica_0/lambda/Gather:0", shape=(10, 5, 80, 180, 1), dtype=float32, device=/device:GPU:0)
-        batch_size = 20
-        input_shape = tf.constant([5, 80, 180, 1])
-        step = batch_size // parts
-        print(f"step: {step}")
-        if i == gpus - 1:
-            size = batch_size - step * i
-        else:
-            size = step
-        print(f"size(1): {size}")
-        start = step * i
-        print(f"start: {start}")
-        print(f"range(start, start+size: {range(start, start+size)}")
-        return tf.gather(data, list(range(start, start+size)))
 
     all_outputs = []
     for i in range(len(model.outputs)):
@@ -190,15 +145,11 @@ def multi_gpu_model(model, gpus):
                 inputs = []
                 # Retrieve a slice of the input.
                 for x in model.inputs:
-                    # x: Tensor("input_2:0", shape=(?, 5, 80, 180, 1), dtype=float32)
-                    print(f"x: {x}")
                     #input_shape = tuple(x.get_shape().as_list())[1:]
                     slice_i = tf.keras.layers.Lambda(get_slice2, 
                                                      #output_shape=input_shape,
                                                      arguments={'i': i,'parts': gpus})(x)
                     inputs.append(slice_i)
-                    print(f"slice_i: {slice_i}")
-                    # slice_i: Tensor("replica_0/lambda/Slice:0", shape=(?, ?, ?, ?, ?), dtype=float32, device=/device:GPU:0)
 
                 # Apply model on slice
                 # (creating a model replica on the target device).
