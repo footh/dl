@@ -196,3 +196,4 @@ def test(zone, batch_size=10, weights_file=None, evaluate=True):
 def vggtest():
     vgg16_model = tf.contrib.keras.applications.VGG16(weights='imagenet', include_top=False, input_shape=(80, 180, 3), pooling='avg')
     vgg16_model.summary()
+    

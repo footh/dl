@@ -43,6 +43,31 @@
 
 import tensorflow as tf
 
+py_all = all
+
+def to_dense(tensor):
+    """Converts a sparse tensor into a dense tensor and returns it.
+    # Arguments
+        tensor: A tensor instance (potentially sparse).
+    # Returns
+        A dense tensor.
+    # Examples
+    ```python
+        >>> from keras import backend as K
+        >>> b = K.placeholder((2, 2), sparse=True)
+        >>> print(K.is_sparse(b))
+        True
+        >>> c = K.to_dense(b)
+        >>> print(K.is_sparse(c))
+        False
+    ```
+    """
+    if is_sparse(tensor):
+        return tf.sparse_tensor_to_dense(tensor)
+    else:
+        return tensor
+
+
 def concatenate(tensors, axis=-1):
     """Concatenates a list of tensors alongside the specified axis.
     # Arguments
@@ -127,7 +152,7 @@ def multi_gpu_model(model, gpus):
                          'call `multi_gpu_model` with `gpus >= 2`. '
                          'Received: `gpus=%d`' % gpus)
 
-    target_devices = ['/cpu:0'] + ['/gpu:%d' % i for i in range(gpus)]
+    target_devices = ['/device:CPU:0'] + ['/device:GPU:%d' % i for i in range(gpus)]
     available_devices = _get_available_devices()
     for device in target_devices:
         if device not in available_devices:
@@ -179,6 +204,12 @@ def multi_gpu_model(model, gpus):
         return tf.slice(data, start, size)
     
     def get_slice2(data, i, parts):
+        # x: Tensor("input_2:0", shape=(?, 5, 80, 180, 1), dtype=float32)
+        # step: 10
+        # size(1): 10
+        # start: 0
+        # range(start, start+size: range(0, 10)
+        # slice_i: Tensor("replica_0/lambda/Gather:0", shape=(10, 5, 80, 180, 1), dtype=float32, device=/device:GPU:0)
         batch_size = 20
         input_shape = tf.constant([5, 80, 180, 1])
         step = batch_size // parts
@@ -200,7 +231,7 @@ def multi_gpu_model(model, gpus):
     # Place a copy of the model on each GPU,
     # each getting a slice of the inputs.
     for i in range(gpus):
-        with tf.device('/gpu:%d' % i):
+        with tf.device('/device:GPU:%d' % i):
             with tf.name_scope('replica_%d' % i):
                 inputs = []
                 # Retrieve a slice of the input.
@@ -226,10 +257,10 @@ def multi_gpu_model(model, gpus):
                     all_outputs[o].append(outputs[o])
 
     # Merge outputs on CPU.
-    with tf.device('/cpu:0'):
+    with tf.device('/device:CPU:0'):
         merged = []
         for outputs in all_outputs:
-            merged.append(concatenate(outputs,
-                                      axis=0))
+            merged.append(concatenate(outputs, axis=0))
+            
         return tf.contrib.keras.models.Model(model.inputs, merged)
     
