@@ -43,70 +43,6 @@
 
 import tensorflow as tf
 
-py_all = all
-
-def is_sparse(tensor):
-    """Returns whether a tensor is a sparse tensor.
-    # Arguments
-        tensor: A tensor instance.
-    # Returns
-        A boolean.
-    # Example
-    ```python
-        >>> from keras import backend as K
-        >>> a = K.placeholder((2, 2), sparse=False)
-        >>> print(K.is_sparse(a))
-        False
-        >>> b = K.placeholder((2, 2), sparse=True)
-        >>> print(K.is_sparse(b))
-        True
-    ```
-    """
-    return isinstance(tensor, tf.SparseTensor)
-
-def to_dense(tensor):
-    """Converts a sparse tensor into a dense tensor and returns it.
-    # Arguments
-        tensor: A tensor instance (potentially sparse).
-    # Returns
-        A dense tensor.
-    # Examples
-    ```python
-        >>> from keras import backend as K
-        >>> b = K.placeholder((2, 2), sparse=True)
-        >>> print(K.is_sparse(b))
-        True
-        >>> c = K.to_dense(b)
-        >>> print(K.is_sparse(c))
-        False
-    ```
-    """
-    if is_sparse(tensor):
-        return tf.sparse_tensor_to_dense(tensor)
-    else:
-        return tensor
-
-
-def concatenate(tensors, axis=-1):
-    """Concatenates a list of tensors alongside the specified axis.
-    # Arguments
-        tensors: list of tensors to concatenate.
-        axis: concatenation axis.
-    # Returns
-        A tensor.
-    """
-    if axis < 0:
-        rank = ndim(tensors[0])
-        if rank:
-            axis %= rank
-        else:
-            axis = 0
-
-    if py_all([is_sparse(x) for x in tensors]):
-        return tf.sparse_concat(axis, tensors)
-    else:
-        return tf.concat([to_dense(x) for x in tensors], axis)
-
 def _get_available_devices():
     from tensorflow.python.client import device_lib
     local_device_protos = device_lib.list_local_devices()
@@ -204,8 +140,7 @@ def multi_gpu_model(model, gpus):
         print(f"shape: {shape}")
         batch_size = shape[:1]
         print(f"batch_size: {batch_size}")
-        #input_shape = shape[1:]
-        input_shape = tf.constant([5, 80, 180, 1])
+        input_shape = shape[1:]
         print(f"input_shape: {input_shape}")
         step = batch_size // parts
         print(f"step: {step}")
@@ -258,9 +193,9 @@ def multi_gpu_model(model, gpus):
                     # x: Tensor("input_2:0", shape=(?, 5, 80, 180, 1), dtype=float32)
                     print(f"x: {x}")
                     #input_shape = tuple(x.get_shape().as_list())[1:]
-                    slice_i = tf.contrib.keras.layers.Lambda(get_slice2, 
-                                                             #output_shape=input_shape,
-                                                             arguments={'i': i,'parts': gpus})(x)
+                    slice_i = tf.keras.layers.Lambda(get_slice2, 
+                                                     #output_shape=input_shape,
+                                                     arguments={'i': i,'parts': gpus})(x)
                     inputs.append(slice_i)
                     print(f"slice_i: {slice_i}")
                     # slice_i: Tensor("replica_0/lambda/Slice:0", shape=(?, ?, ?, ?, ?), dtype=float32, device=/device:GPU:0)
@@ -268,6 +203,7 @@ def multi_gpu_model(model, gpus):
                 # Apply model on slice
                 # (creating a model replica on the target device).
                 outputs = model(inputs)
+                print(f"outputs: {outputs}")
                 if not isinstance(outputs, list):
                     outputs = [outputs]
 
@@ -279,7 +215,7 @@ def multi_gpu_model(model, gpus):
     with tf.device('/device:CPU:0'):
         merged = []
         for outputs in all_outputs:
-            merged.append(concatenate(outputs, axis=0))
+            merged.append(tf.keras.layers.concatenate(outputs, axis=0))
             
-        return tf.contrib.keras.models.Model(model.inputs, merged)
+        return tf.keras.models.Model(model.inputs, merged)
     
