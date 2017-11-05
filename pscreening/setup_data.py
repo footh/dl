@@ -261,9 +261,7 @@ def generate_points_files(all_file='points-all.csv', dirs=['train', 'valid', 'te
         points = np.asarray([sample_dict[id] for id in ids])
         points = points.reshape(points.shape[0] * points.shape[1], points.shape[2])
     
-        with open(f"points-{dir}.csv", 'w', newline='\n') as csvfile:
+        with open(os.path.join(config.PSCREENING_HOME, f"points-{dir}.csv"), 'w', newline='\n') as csvfile:
             writer = csv.writer(csvfile, delimiter=',')
             for row in points:
                 writer.writerow(row)
-
-
