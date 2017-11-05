@@ -264,4 +264,5 @@ def generate_points_files(all_file='points-all.csv', dirs=['train', 'valid', 'te
         with open(os.path.join(config.PSCREENING_HOME, f"points-{dir}.csv"), 'w', newline='\n') as csvfile:
             writer = csv.writer(csvfile, delimiter=',')
             for row in points:
+                row[0] = row[0].replace(f"{config.RAW_DATA_DIR}/all", f"{config.RAW_DATA_DIR}/{dir}")
                 writer.writerow(row)
