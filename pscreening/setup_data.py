@@ -196,6 +196,9 @@ def extract_zones(src='train', sample_file='points-all.csv', slice_count=16, zon
     zones_max = zones_max_dict(file=sample_file, slice_count=slice_count, zones=zones, area_threshold=area_threshold, round_up=True)
     full_dest_dir = os.path.join(config.PSCREENING_HOME, config.TRAINING_DIR, src)
     
+    if not os.path.exists(full_dest_dir):
+        os.mkdir(full_dest_dir)
+    
     with open(file, newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')
         
@@ -208,7 +211,10 @@ def extract_zones(src='train', sample_file='points-all.csv', slice_count=16, zon
             file_data = util.read_data(row[0, 0])
             id = sample_id_from_file(row[0, 0])
             for i in range(len(zones)):
-                file_name = os.path.join(full_dest_dir, str(zones[i]), id) + '.npy'
+                zone_dir = os.path.join(full_dest_dir, str(zones[i]))
+                if not os.path.exists(zone_dir):
+                    os.mkdir(zone_dir)
+                file_name = os.path.join(zone_dir, id) + '.npy'
                 if not overwrite and os.path.exists(file_name):
                     print(f"File {file_name} already exists. Skipping!")
                     continue
@@ -233,7 +239,10 @@ def extract_zones(src='train', sample_file='points-all.csv', slice_count=16, zon
             print(f"Finished row {cnt}")
 
 def generate_points_files(all_file='points-all.csv', dirs=['train', 'valid', 'test', 'submission'], slice_count=16):
-    
+    """
+      Using the main points file (points-all.csv) generates all the other points files in 'dirs' based on what samples are in
+      their respective raw-data directory
+    """
     
     all_file = os.path.join(config.PSCREENING_HOME, all_file)
     sample_dict = {}
@@ -249,9 +258,12 @@ def generate_points_files(all_file='points-all.csv', dirs=['train', 'valid', 'te
     for dir in dirs:
         ids = [sample_id_from_file(f) for f in shuffled_files(dir)]
         
-        return sample_dict, ids
-        
+        points = np.asarray([sample_dict[id] for id in ids])
+        points = points.reshape(points.shape[0] * points.shape[1], points.shape[2])
     
-    
+        with open(f"points-{dir}.csv", 'w', newline='\n') as csvfile:
+            writer = csv.writer(csvfile, delimiter=',')
+            for row in points:
+                writer.writerow(row)
 
 
