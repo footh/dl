@@ -57,6 +57,30 @@ def shuffled_files(src):
     
     return np.random.permutation(src_files)
             
+            
+def generate_combined(src='all', num=None, method='avg'):
+    """
+        Generates a combined file from aps files in the src_dir for help in identifying zones.
+        This file is serialized as an npy file named 'combinedNUM.npy' where 'num' is the number
+        of files used in the combination. If 'num' is not given, all files are used.
+    """
+    files = shuffled_files(src)
+    if num is None:
+        num = len(files)
+    
+    sample = np.asarray(util.read_data(files[0]))
+    combined = np.zeros(sample.shape) + sample
+    for file in files[1:num]:
+        if method == 'avg':
+            combined = combined + np.asarray(util.read_data(file))
+        else:
+            combined = np.maximum(combined, np.asarray(util.read_data(file)))
+    
+    if method == 'avg':
+        combined = combined / num
+    
+    np.save(f"combined-{src}-{num}", combined)
+           
 def __remove_files(src):
     if os.path.isfile(src):
         os.unlink(src)
