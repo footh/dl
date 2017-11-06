@@ -211,7 +211,9 @@ def zones_max_dict(file='points-all.csv', slice_count=16, zones=[1,3,5,6,7,8,9,1
                            
         return zones_max
     
-def extract_zones(src='train', sample_file='points-all.csv', slice_count=16, zones=[1,3,5,6,7,8,9,10,11,12,17], area_threshold=0, overwrite=True):
+def extract_zones(src='train', sample_file='points-all.csv', slice_count=16, 
+                  zones=[1,3,5,6,7,8,9,10,11,12,17], area_threshold=0, 
+                  overwrite=True, img_scale=False):
     """
         For zones 'src', uses the associated points file to extract the zones and save them as numpy arrays in a directory by zone 
     """
@@ -233,6 +235,9 @@ def extract_zones(src='train', sample_file='points-all.csv', slice_count=16, zon
         for row in all_rows:
 
             file_data = util.read_data(row[0, 0])
+            if img_scale:
+                file_data = scipy.misc.bytescale(file_data)
+            
             id = sample_id_from_file(row[0, 0])
             for i in range(len(zones)):
                 zone_dir = os.path.join(full_dest_dir, str(zones[i]))
