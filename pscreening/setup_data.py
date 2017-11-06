@@ -236,7 +236,7 @@ def extract_zones(src='train', sample_file='points-all.csv', slice_count=16,
 
             file_data = util.read_data(row[0, 0])
             if img_scale:
-                file_data = scipy.misc.bytescale(file_data)
+                file_data = scipy.misc.bytescale(np.asarray(file_data))
             
             id = sample_id_from_file(row[0, 0])
             for i in range(len(zones)):
