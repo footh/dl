@@ -58,7 +58,7 @@ def shuffled_files(src):
     return np.random.permutation(src_files)
             
             
-def generate_combined(src='all', num=None, method='avg'):
+def generate_combined(src='all', num=None, method='avg', img_scale=False):
     """
         Generates a combined file from aps files in the src_dir for help in identifying zones.
         This file is serialized as an npy file named 'combinedNUM.npy' where 'num' is the number
@@ -69,12 +69,16 @@ def generate_combined(src='all', num=None, method='avg'):
         num = len(files)
     
     sample = np.asarray(util.read_data(files[0]))
-    combined = np.zeros(sample.shape) + sample
-    for file in files[1:num]:
+    combined = np.zeros(sample.shape)
+    for file in files[0:num]:
+        file_data = np.asarray(util.read_data(file))
+        if img_scale:
+            file_data = scipy.misc.bytescale(file_data)
+        
         if method == 'avg':
-            combined = combined + np.asarray(util.read_data(file))
+            combined = combined + file_data
         else:
-            combined = np.maximum(combined, np.asarray(util.read_data(file)))
+            combined = np.maximum(combined, file_data)
     
     if method == 'avg':
         combined = combined / num
@@ -213,7 +217,7 @@ def zones_max_dict(file='points-all.csv', slice_count=16, zones=[1,3,5,6,7,8,9,1
     
 def extract_zones(src='train', sample_file='points-all.csv', slice_count=16, 
                   zones=[1,3,5,6,7,8,9,10,11,12,17], area_threshold=0, 
-                  overwrite=True, img_scale=False):
+                  overwrite=True, img_scale=False, start=0):
     """
         For zones 'src', uses the associated points file to extract the zones and save them as numpy arrays in a directory by zone 
     """
@@ -230,9 +234,10 @@ def extract_zones(src='train', sample_file='points-all.csv', slice_count=16,
         
         all_rows = np.array(list(reader))
         all_rows = all_rows.reshape(all_rows.shape[0] // slice_count, slice_count, all_rows.shape[1])
+        total_rows = all_rows.shape[0]
         
         cnt = 0
-        for row in all_rows:
+        for row in all_rows[start:total_rows]:
 
             file_data = util.read_data(row[0, 0])
             if img_scale:
