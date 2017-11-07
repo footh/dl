@@ -82,6 +82,7 @@ def generate_combined(src='all', num=None, method='avg', img_scale=False):
     
     if method == 'avg':
         combined = combined / num
+    # np.sum(combined, axis=(1,2))
     
     np.save(f"combined-{src}-{num}", combined)
            
@@ -217,7 +218,7 @@ def zones_max_dict(file='points-all.csv', slice_count=16, zones=[1,3,5,6,7,8,9,1
     
 def extract_zones(src='train', sample_file='points-all.csv', slice_count=16, 
                   zones=[1,3,5,6,7,8,9,10,11,12,17], area_threshold=0, 
-                  overwrite=True, img_scale=False, start=0):
+                  overwrite=True, start=0, img_scale=True, mean_file=None):
     """
         For zones 'src', uses the associated points file to extract the zones and save them as numpy arrays in a directory by zone 
     """
@@ -228,6 +229,9 @@ def extract_zones(src='train', sample_file='points-all.csv', slice_count=16,
     
     if not os.path.exists(full_dest_dir):
         os.mkdir(full_dest_dir)
+
+    if mean_file is not None:
+        mean_file = np.load(mean_file)
     
     with open(file, newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')
@@ -236,12 +240,14 @@ def extract_zones(src='train', sample_file='points-all.csv', slice_count=16,
         all_rows = all_rows.reshape(all_rows.shape[0] // slice_count, slice_count, all_rows.shape[1])
         total_rows = all_rows.shape[0]
         
-        cnt = 0
+        cnt = start
         for row in all_rows[start:total_rows]:
 
             file_data = util.read_data(row[0, 0])
-            if img_scale:
+            if img_scale or mean_file is not None:
                 file_data = scipy.misc.bytescale(np.asarray(file_data))
+                if mean_file is not None:
+                    file_data = file_data - mean_file
             
             id = sample_id_from_file(row[0, 0])
             for i in range(len(zones)):
