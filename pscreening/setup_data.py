@@ -231,7 +231,7 @@ def extract_zones(src='train', sample_file='points-all.csv', slice_count=16,
         os.mkdir(full_dest_dir)
 
     if mean_file is not None:
-        mean_file = np.load(mean_file)
+        mean_file = np.load(os.path.join(config.PSCREENING_HOME, mean_file))
     
     with open(file, newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')
