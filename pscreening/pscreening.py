@@ -189,7 +189,7 @@ def test(zone, batch_size=10, weights_file=None, evaluate=True, gpus=None):
     model.compile()
 
     weights_file_path = os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, weights_file)
-    model.model.load_weights(weights_file_path)
+    model.model.load_weights(weights_file_path, by_name=True)
     
     results = None
     if evaluate:

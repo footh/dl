@@ -269,7 +269,7 @@ class ZoneFileIterator(Iterator):
         # The transformation of images is not under thread lock
         # so it can be done in parallel
         batch_x = np.zeros((current_batch_size,) + self.data_shape, dtype=np.float32)
-        batch_y = np.zeros(current_batch_size, dtype=np.float32)
+        batch_y = np.zeros((current_batch_size, 1), dtype=np.float32)
         # build batch of image data
         for i, j in enumerate(index_array):
             fname = self.filenames[j]
@@ -286,6 +286,6 @@ class ZoneFileIterator(Iterator):
                 # TODO: duplicate the data value 'channels' times 
                 batch_x[i] = data.reshape(self.data_shape)
             
-            batch_y[i] = self.label_dict[id][self.zone-1]
+            batch_y[i,0] = self.label_dict[id][self.zone-1]
 
         return batch_x, batch_y
