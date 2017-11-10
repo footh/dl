@@ -15,7 +15,7 @@ import tf_util
 # All models will have an input_shape argument that includes the channel. Ex. (5, 80, 180, 1) or (5, 1, 80, 180)
 
 class PScreeningModel():
-    def __init__(self, gpus=None):
+    def __init__(self, multi_gpu=False):
         cfg = tf.ConfigProto()
         cfg.gpu_options.allow_growth = True
         cfg.log_device_placement = True
@@ -25,7 +25,7 @@ class PScreeningModel():
         tf.keras.backend.set_session(session)
         
         self.input_shape = None
-        self.gpus = gpus
+        self.multi_gpu = multi_gpu
 
     def get_image_model(self, input_shape):
         """
@@ -33,20 +33,7 @@ class PScreeningModel():
         """
         raise NotImplementedError
     
-    def create(self, input_shape=None):
-        """
-            Build the model and display the summary
-        """
-        img_shape = None
-        if input_shape is not None:
-            self.input_shape = input_shape
-            print(f"input_shape: {self.input_shape}")
-            img_shape = input_shape[1:3] + (3,)
-            print(f"vgg_shape: {img_shape}")
-        else:
-            print(f"No input shape given. Model cannot be created")
-            return
-
+    def build_model(self, img_shape):
         #---------------------
         # Vision model creation for just one frame of the input data. This will be used in the TimeDistributed layer to consume all the frames.
         # This section will convert the 1-channel image into three channels. Got idea from here: http://forums.fast.ai/t/black-and-white-images-on-vgg16/2479/13
@@ -73,15 +60,29 @@ class PScreeningModel():
         #x = BatchNormalization()(x)
         predictions = tf.keras.layers.Dense(1, activation = 'sigmoid')(x)
         
-        self.model = tf.keras.models.Model(inputs=frame_input, outputs=predictions)
-        if self.gpus is not None:
-            self.model = tf_util.multi_gpu_model(self.model, self.gpus)
-        
-        self.model.summary()
+        return tf.keras.models.Model(inputs=frame_input, outputs=predictions)
+    
+    def create(self, input_shape=None):
+        """
+            Build the model and display the summary
+        """
+        img_shape = None
+        if input_shape is not None:
+            self.input_shape = input_shape
+            print(f"input_shape: {self.input_shape}")
+            img_shape = input_shape[1:3] + (3,)
+            print(f"vgg_shape: {img_shape}")
+        else:
+            print(f"No input shape given. Model cannot be created")
+            return
 
-    def compile(self, lr=0.001):
-        self.model.compile(optimizer=tf.keras.optimizers.Adam(lr=lr), loss='binary_crossentropy', metrics=['accuracy'])
- 
+        if self.multi_gpu:
+            with tf.device('/device:CPU:0'):
+                self.model = build_model(img_shape)
+        else:
+            self.model = build_model(img_shape)
+        
+        self.model.summary()        
 
 class InceptionModel(PScreeningModel):
     def __init__(self, *args, **kwargs):
@@ -141,23 +142,27 @@ def train(zone, epochs=1, batch_size=20, learning_rate=0.001, version=None, gpus
     print(f"validation sample size: {val_batches.samples}")
     print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
     
-    wkr_model = None
+    ps_model = None
     if mtype == 'inception':
-        wkr_model = InceptionModel(gpus=gpus)
+        ps_model = InceptionModel()
     else:
-        wkr_model = VGG16Model(gpus=gpus)
-    
+        ps_model = VGG16Model()
+
     #TODO: create the model with None as the time dimension? When looking at the code it looked like TimeDistributed
     #acts differently when None is passed as opposed to a fixed dimension. 
-    wkr_model.create(input_shape=train_batches.data_shape)
-    wkr_model.compile(lr=learning_rate)
- 
-    wkr_model.model.fit_generator(train_batches,
-                                  steps_per_epoch=steps_per_epoch,
-                                  epochs=epochs,
-                                  validation_data=val_batches, 
-                                  validation_steps=validation_steps,
-                                  class_weight={0:0.1, 1:0.90})
+    ps_model.create(input_shape=train_batches.data_shape)
+        
+    train_model = ps_model.model
+    if gpus is not None:
+        train_model = tf_util.multi_gpu_model(ps_model.model, gpus)
+     
+    train_model.compile(optimizer=tf.keras.optimizers.Adam(lr=learning_rate), loss='binary_crossentropy', metrics=['accuracy']) 
+    train_model.fit_generator(train_batches,
+                              steps_per_epoch=steps_per_epoch,
+                              epochs=epochs,
+                              validation_data=val_batches, 
+                              validation_steps=validation_steps,
+                              class_weight={0:0.1, 1:0.90})
      
     weights_version = f"zone{zone}-{wkr_model.name}-e{epochs}-bs{batch_size}-lr{str(learning_rate).split('.')[1]}"
     weights_version += f"-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}" 
@@ -165,7 +170,12 @@ def train(zone, epochs=1, batch_size=20, learning_rate=0.001, version=None, gpus
         weights_version += f"-{version}"
          
     weights_file = weights_version + '.h5'
-    wkr_model.model.save_weights(os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, weights_file))
+    
+    if gpus is not None:
+        ps_model.model.compile(optimizer=tf.keras.optimizers.Adam(lr=learning_rate), loss='binary_crossentropy')
+        ps_model.model.set_weights(train_model.get_weights())
+    
+    ps_model.model.save_weights(os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, weights_file))
      
     return weights_file
 
@@ -178,28 +188,25 @@ def test(zone, batch_size=10, weights_file=None, evaluate=True, gpus=None):
     print(f"test batch size: {test_batches.batch_size}, steps: {test_steps}")
 
     mtype = weights_file.split('-')[1]
-    model = None
+    ps_model = None
     if mtype == 'inception':
-        model = InceptionModel(gpus=gpus)
+        ps_model = InceptionModel()
     else:
-        model = VGG16Model(gpus=gpus)
+        ps_model = VGG16Model()
 
     # Assuming one-channel inputs for now.
-    model.create(input_shape=test_batches.data_shape)
-    model.compile()
+    ps_model.create(input_shape=test_batches.data_shape)
+    ps_model.model.compile(optimizer=tf.keras.optimizers.Adam(lr=learning_rate), loss='binary_crossentropy')
 
     weights_file_path = os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, weights_file)
-    model.model.load_weights(weights_file_path, by_name=True)
+    ps_model.model.load_weights(weights_file_path, by_name=True)
     
     results = None
     if evaluate:
-        results = model.model.evaluate_generator(test_batches, test_steps)
+        results = ps_model.model.evaluate_generator(test_batches, test_steps)
     else:
-        results = model.model.predict_generator(test_batches, test_steps)
+        results = ps_model.model.predict_generator(test_batches, test_steps)
 
     return results
 
-def vggtest():
-    vgg16_model = tf.keras.applications.VGG16(weights='imagenet', include_top=False, input_shape=(80, 180, 3), pooling='avg')
-    vgg16_model.summary()
     

@@ -28,6 +28,15 @@ zone_padding[0][8] = zone_padding[1][8] = zone_padding[2][8] = zone_padding[14][
 zone_padding[0][9] = zone_padding[1][9] = zone_padding[2][9] = zone_padding[14][9] = zone_padding[15][9] = [-10,0,10,10] #slice 2 maybe not expand 9
 zone_padding[0][10] = zone_padding[1][10] = zone_padding[2][10] = zone_padding[14][10] = zone_padding[15][10] = [-10,0,50,10]
 
+zone_padding[0][11] = zone_padding[1][11] = [-50,0,0,0]
+zone_padding[2][11] = [-25,0,25,0]
+zone_padding[6][11] = [0,0,50,0]
+zone_padding[7][11] = [20,0,50,0]
+zone_padding[8][11] = zone_padding[9][11] = [0,0,50,0]
+zone_padding[10][11] = [-25,0,25,0]
+zone_padding[11][11] = zone_padding[12][11] = zone_padding[13][11] = [-50,0,0,0]
+zone_padding[14][11] = zone_padding[15][11] = [-50,0,-25,0]
+
 zone_padding[3][7] = zone_padding[3][10] = zone_padding[11][6] = zone_padding[11][8] = [-50,0,50,10]
 zone_padding[4][7] = zone_padding[4][10] = zone_padding[12][6] = zone_padding[12][8] = [-50,0,50,10]
 zone_padding[5][7] = zone_padding[5][10] = zone_padding[13][6] = zone_padding[13][8] = [-50,0,50,10]
