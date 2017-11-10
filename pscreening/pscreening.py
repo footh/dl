@@ -78,9 +78,9 @@ class PScreeningModel():
 
         if self.multi_gpu:
             with tf.device('/device:CPU:0'):
-                self.model = build_model(img_shape)
+                self.model = self.build_model(img_shape)
         else:
-            self.model = build_model(img_shape)
+            self.model = self.build_model(img_shape)
         
         self.model.summary()        
 
