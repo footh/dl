@@ -173,8 +173,8 @@ def train(zone, epochs=1, batch_size=20, learning_rate=0.001, version=None, gpus
     
     if gpus is not None:
         ps_model.model.compile(optimizer=tf.keras.optimizers.Adam(lr=learning_rate), loss='binary_crossentropy')
-        print(f"ps_model.model.get_weights().shape: {ps_model.model.get_weights().shape}")
-        print(f"train_model.get_weights().shape: {train_model.get_weights().shape}")
+        print(f"ps_model.model.get_weights().shape: {np.asarray(ps_model.model.get_weights())}")
+        print(f"train_model.get_weights().shape: {np.asarray(train_model.get_weights())}")
         ps_model.model.set_weights(train_model.get_weights())
     
     ps_model.model.save_weights(os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, weights_file))
