@@ -172,7 +172,7 @@ def train(zone, epochs=1, batch_size=20, learning_rate=0.001, version=None, gpus
     weights_file = weights_version + '.h5'
     
     if gpus is not None:
-        trained_model = [l for l in train_model.layers if l.__class__.__name__ == 'Model'][0]
+        train_model = [l for l in train_model.layers if l.__class__.__name__ == 'Model'][0]
     
     train_model.save_weights(os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, weights_file))
      
