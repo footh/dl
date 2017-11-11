@@ -537,6 +537,10 @@ def create_zones16(file_images):
                                                                                                                                                                   slice_cursor=2, slice=14, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj, z_depth=z_depth)
     zones[15][5], zones[15][6], zones[15][7], zones[15][8], zones[15][9], zones[15][10], zones[15][1], zones[15][3], zones[15][11], zones[15][12] = extract_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows,
                                                                                                         slice_cursor=1, slice=15, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj, z_depth=z_depth)
+    
+    # Zeroing out these fringe slice zones to shrink model input. 
+    zones[2][6] = zones[2][8] = zones[6][6] = zones[6][8] = zones[10][7] = zones[10][10] = zones[14][7] = zones[14][10] = [0,0,0,0]    
+    
     return zones
 
                         

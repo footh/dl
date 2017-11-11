@@ -265,7 +265,7 @@ def extract_zones(src='train', sample_file='points-all.csv', slice_count=16,
                 a = (zone_rects[:,4] - zone_rects[:,2]) * (zone_rects[:,3] - zone_rects[:,1])
                 zone_rects = zone_rects[a > area_threshold]
                 
-                slice_data = np.zeros(zones_max[zones[i]])
+                slice_data = np.zeros(zones_max[zones[i]], dtype=np.float32)
                 for j in range(zone_rects.shape[0]):
                     rb = zone_rects[j,2]
                     re = zone_rects[j,4]
