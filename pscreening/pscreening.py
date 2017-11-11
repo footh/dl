@@ -71,7 +71,7 @@ class PScreeningModel():
             self.input_shape = input_shape
             print(f"input_shape: {self.input_shape}")
             img_shape = input_shape[1:3] + (3,)
-            print(f"vgg_shape: {img_shape}")
+            print(f"img_shape: {img_shape}")
         else:
             print(f"No input shape given. Model cannot be created")
             return
@@ -195,7 +195,7 @@ def test(zone, batch_size=10, weights_file=None, evaluate=True, gpus=None):
 
     # Assuming one-channel inputs for now.
     ps_model.create(input_shape=test_batches.data_shape)
-    ps_model.model.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001), loss='binary_crossentropy')
+    ps_model.model.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001), loss='binary_crossentropy', metrics=['accuracy'])
 
     weights_file_path = os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, weights_file)
     ps_model.model.load_weights(weights_file_path)
