@@ -195,7 +195,7 @@ def test(zone, batch_size=10, weights_file=None, evaluate=True, gpus=None):
 
     # Assuming one-channel inputs for now.
     ps_model.create(input_shape=test_batches.data_shape)
-    ps_model.model.compile(optimizer=tf.keras.optimizers.Adam(lr=learning_rate), loss='binary_crossentropy')
+    ps_model.model.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001), loss='binary_crossentropy')
 
     weights_file_path = os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, weights_file)
     ps_model.model.load_weights(weights_file_path, by_name=True)
