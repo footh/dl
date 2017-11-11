@@ -144,9 +144,9 @@ def train(zone, epochs=1, batch_size=20, learning_rate=0.001, version=None, gpus
     
     ps_model = None
     if mtype == 'inception':
-        ps_model = InceptionModel()
+        ps_model = InceptionModel(multi_gpu=(gpus is not None))
     else:
-        ps_model = VGG16Model()
+        ps_model = VGG16Model(multi_gpu=(gpus is not None))
 
     #TODO: create the model with None as the time dimension? When looking at the code it looked like TimeDistributed
     #acts differently when None is passed as opposed to a fixed dimension. 
