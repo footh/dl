@@ -18,7 +18,7 @@ class PScreeningModel():
     def __init__(self, multi_gpu=False):
         cfg = tf.ConfigProto()
         cfg.gpu_options.allow_growth = True
-        cfg.log_device_placement = True
+        #cfg.log_device_placement = True
         cfg.allow_soft_placement=True
 
         session = tf.Session(config=cfg)
@@ -172,17 +172,9 @@ def train(zone, epochs=1, batch_size=20, learning_rate=0.001, version=None, gpus
     weights_file = weights_version + '.h5'
     
     if gpus is not None:
-        ps_model.model.compile(optimizer=tf.keras.optimizers.Adam(lr=learning_rate), loss='binary_crossentropy')
-        print(f"ps_model.model.get_weights().shape: {np.asarray(ps_model.model.get_weights()).shape}")
-        print(f"train_model.get_weights().shape: {np.asarray(train_model.get_weights()).shape}")
-        for w in ps_model.model.get_weights():
-            print(f"each ps_model.model.get_weights: {w}")
-        for w in train_model.get_weights():
-            print(f"each train_model.get_weights: {w}")
-        
-        ps_model.model.set_weights(train_model.get_weights())
+        trained_model = [l for l in train_model.layers if l.__class__.__name__ == 'Model'][0]
     
-    ps_model.model.save_weights(os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, weights_file))
+    train_model.save_weights(os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, weights_file))
      
     return weights_file
 
