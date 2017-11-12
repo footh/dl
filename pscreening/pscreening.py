@@ -129,7 +129,8 @@ def get_batches(src, zone, data_shape, batch_size=20, shuffle=True):
                                   batch_size=batch_size,
                                   shuffle=shuffle)
              
-def train(zone, epochs=1, batch_size=20, learning_rate=0.001, version=None, gpus=None, mtype='vgg16'):
+def train(zone, epochs=1, batch_size=20, learning_rate=0.001, 
+          version=None, gpus=None, mtype='vgg16', starting_weights_file=None):
     data_shape = sd.zones_max_dict(round_up=True)[zone]
 
     train_batches = get_batches('train', zone, data_shape, batch_size=batch_size, shuffle=True)
@@ -151,6 +152,11 @@ def train(zone, epochs=1, batch_size=20, learning_rate=0.001, version=None, gpus
     #TODO: create the model with None as the time dimension? When looking at the code it looked like TimeDistributed
     #acts differently when None is passed as opposed to a fixed dimension. 
     ps_model.create(input_shape=train_batches.data_shape)
+    
+    if starting_weights_file is not None:
+        swf_path = os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, starting_weights_file)
+        ps_model.model.load_weights(swf_path)
+
         
     train_model = ps_model.model
     if gpus is not None:
