@@ -11,8 +11,10 @@ import config
 import zones as z
 import zones_config
 
+ZONE_EXTRACTIONS = [1,3,5,6,7,8,9,10,11,12,17]
+
 def sample_id_from_file(file_name):
-    return os.path.basename(file_name).split('.')[0]
+    return os.path.splitext(os.path.basename(file_name))[0]
 
 def label_dict(label_file='stage1_labels.csv'):
     """
@@ -153,7 +155,7 @@ def setup_data(num_valid=None, num_test=None, ext='aps'):
     print('Copying %s training files' % (labeled_count - (valid_count + test_count)))
     __copy_files(shuffled_files[(valid_count + test_count):], all_src_dir, train_dir, ext=ext)
 
-def points_file(src='train', zones=[1,3,5,6,7,8,9,10,11,12,17], padding=False):
+def points_file(src='train', padding=False):
     """
         Creates points file for the given 'src' files ('train', 'valid', 'test', etc)
     """
@@ -173,12 +175,12 @@ def points_file(src='train', zones=[1,3,5,6,7,8,9,10,11,12,17], padding=False):
                 zones_config.apply_padding(zone_rects)
             print(f"Write record...")
             for i in range(16):
-                row = [[f], [i]] + [list(zone_rects[i][j]) for j in zones]
+                row = [[f], [i]] + [list(zone_rects[i][j]) for j in ZONE_EXTRACTIONS]
                 row = [val for sublist in row for val in sublist]
                 writer.writerow(row)
             print(f"Record #{f_count} completed")
     
-def zones_max_dict(file='points-all.csv', slice_count=16, zones=[1,3,5,6,7,8,9,10,11,12,17], area_threshold=0, round_up=False):
+def zones_max_dict(file='points-all.csv', slice_count=16, area_threshold=0, round_up=False):
     """
         Returns a dict of zone => 3-tuple of (valid_slices, max_height, max_width)
         Calculates these values from the passed in points file
@@ -190,7 +192,7 @@ def zones_max_dict(file='points-all.csv', slice_count=16, zones=[1,3,5,6,7,8,9,1
         zone_rects = np.array(all_rows[:,2:], dtype=np.int32)
         
         zones_max = {}
-        for i, z in enumerate(zones):
+        for i, z in enumerate(ZONE_EXTRACTIONS):
            w = zone_rects[:,2+4*i] - zone_rects[:,0+4*i]
            h = zone_rects[:,3+4*i] - zone_rects[:,1+4*i]
            
@@ -216,15 +218,29 @@ def zones_max_dict(file='points-all.csv', slice_count=16, zones=[1,3,5,6,7,8,9,1
                            
         return zones_max
     
+def _valid_rects(zone_idx, sample_chunk, area_threshold=0):
+    """
+      From a sample chunk (points file output for a given sample), the rects from the zone_idx are extracted, removing any
+      that are below the area threshold.
+    """
+    
+    # zone_rects starts as a matrix of all slices + rects. The area is calculated and zone_rects is
+    # collapsed to only the rects that pass the area_threshold    
+    zone_rects = np.array(np.hstack((sample_chunk[:,1:2], sample_chunk[:,2+4*zone_idx:6+4*zone_idx])), dtype=np.int32)
+    a = (zone_rects[:,4] - zone_rects[:,2]) * (zone_rects[:,3] - zone_rects[:,1])
+    zone_rects = zone_rects[a > area_threshold]
+    
+    return zone_rects
+    
 def extract_zones(src='train', sample_file='points-all.csv', slice_count=16, 
-                  zones=[1,3,5,6,7,8,9,10,11,12,17], area_threshold=0, 
-                  overwrite=True, start=0, img_scale=True, mean_file=None):
+                  area_threshold=0, overwrite=True, start=0, 
+                  img_scale=True, mean_file=None):
     """
         For zones 'src', uses the associated points file to extract the zones and save them as numpy arrays in a directory by zone 
     """
     file = os.path.join(config.PSCREENING_HOME, 'points-' + src + '.csv')
     
-    zones_max = zones_max_dict(file=sample_file, slice_count=slice_count, zones=zones, area_threshold=area_threshold, round_up=True)
+    zones_max = zones_max_dict(file=sample_file, slice_count=slice_count, area_threshold=area_threshold, round_up=True)
     full_dest_dir = os.path.join(config.PSCREENING_HOME, config.TRAINING_DIR, src)
     
     if not os.path.exists(full_dest_dir):
@@ -250,8 +266,8 @@ def extract_zones(src='train', sample_file='points-all.csv', slice_count=16,
                     file_data = file_data - mean_file
             
             id = sample_id_from_file(row[0, 0])
-            for i in range(len(zones)):
-                zone_dir = os.path.join(full_dest_dir, str(zones[i]))
+            for i in range(len(ZONE_EXTRACTIONS)):
+                zone_dir = os.path.join(full_dest_dir, str(ZONE_EXTRACTIONS[i]))
                 if not os.path.exists(zone_dir):
                     os.mkdir(zone_dir)
                 file_name = os.path.join(zone_dir, id) + '.npy'
@@ -259,13 +275,9 @@ def extract_zones(src='train', sample_file='points-all.csv', slice_count=16,
                     print(f"File {file_name} already exists. Skipping!")
                     continue
                 
-                # zone_rects starts as a matrix of all slices + rects. The area is calculated and zone_rects is
-                # collapsed to only the rects that pass the area_threshold
-                zone_rects = np.array(np.hstack((row[:,1:2], row[:,2+4*i:6+4*i])), dtype=np.int32)
-                a = (zone_rects[:,4] - zone_rects[:,2]) * (zone_rects[:,3] - zone_rects[:,1])
-                zone_rects = zone_rects[a > area_threshold]
+                zone_rects = _valid_rects(i, row, area_threshold=area_threshold)
                 
-                slice_data = np.zeros(zones_max[zones[i]], dtype=np.float32)
+                slice_data = np.zeros(zones_max[ZONE_EXTRACTIONS[i]], dtype=np.float32)
                 for j in range(zone_rects.shape[0]):
                     rb = zone_rects[j,2]
                     re = zone_rects[j,4]
@@ -277,13 +289,12 @@ def extract_zones(src='train', sample_file='points-all.csv', slice_count=16,
             
             cnt += 1
             print(f"Finished row {cnt}")
-
-def generate_points_files(all_file='points-all.csv', dirs=['train', 'valid', 'test', 'submission'], slice_count=16):
+            
+def sample_dict(all_file='points-all.csv', slice_count=16, zone=None, area_threshold=0):
     """
-      Using the main points file (points-all.csv) generates all the other points files in 'dirs' based on what samples are in
-      their respective raw-data directory
+        Gets a dict of sample id => sample chunk from points file. If zone is given, then only the slice and rects will be returned
+        and collapsed to remove rects under the area_threshold
     """
-    
     all_file = os.path.join(config.PSCREENING_HOME, all_file)
     sample_dict = {}
     with open(all_file, newline='') as csvfile:
@@ -293,8 +304,22 @@ def generate_points_files(all_file='points-all.csv', dirs=['train', 'valid', 'te
         
         for sample_chunk in sample_chunks:
             id = sample_id_from_file(sample_chunk[0, 0])
+            if zone is not None:
+                zone_idx = ZONE_EXTRACTIONS.index(zone)
+                sample_chunk = _valid_rects(zone_idx, sample_chunk, area_threshold=area_threshold)
+                
             sample_dict[id] = sample_chunk
+            
+    return sample_dict
     
+
+def generate_points_files(dirs=['train', 'valid', 'test', 'submission']):
+    """
+      Using the main points file (points-all.csv) generates all the other points files in 'dirs' based on what samples are in
+      their respective raw-data directory
+    """
+    sample_dict = sample_dict()
+            
     for dir in dirs:
         ids = [sample_id_from_file(f) for f in shuffled_files(dir)]
         

@@ -5,11 +5,11 @@ import tensorflow as tf
 import config
 import setup_data as sd
 import zone_generator
+import zone_aps_generator
 import math
 import datetime
 import os
 import tf_util
-
 
 # NOTES:
 # All models will have an input_shape argument that includes the channel. Ex. (5, 80, 180, 1) or (5, 1, 80, 180)
@@ -115,7 +115,7 @@ class VGG16Model(PScreeningModel):
 
         return vgg16_model
        
-def get_batches(src, zone, data_shape, batch_size=20, shuffle=True):
+def get_batches(src, zone, data_shape, batch_size=24, shuffle=True):
     """
         Get generator for files in src (train, valid, test, etc.) for given zone.
         TODO: For now, channels are assumed to be 1
@@ -129,16 +129,32 @@ def get_batches(src, zone, data_shape, batch_size=20, shuffle=True):
                                   batch_size=batch_size,
                                   shuffle=shuffle)
              
-def train(zone, epochs=1, batch_size=20, learning_rate=0.001, 
+def get_batches_aps(src, zone, data_shape, batch_size=24, shuffle=True):
+    """
+        Get generator for files in src (train, valid, test, etc.) for given zone.
+        TODO: For now, channels are assumed to be 1
+    """
+    base_dir = os.path.join(config.PSCREENING_LOCAL_HOME, config.RAW_DATA_DIR, src)
+    
+    zg = zone_aps_generator.ZoneApsGenerator()
+    return zg.flow_from_directory(base_dir,
+                                  zone,
+                                  data_shape,
+                                  batch_size=batch_size,
+                                  shuffle=shuffle)
+             
+def train(zone, epochs=1, batch_size=24, learning_rate=0.001, 
           version=None, gpus=None, mtype='vgg16', starting_weights_file=None):
     data_shape = sd.zones_max_dict(round_up=True)[zone]
+    # TODO: parameterize!
+    data_shape = (data_shape[0], 200, 200)
 
-    train_batches = get_batches('train', zone, data_shape, batch_size=batch_size, shuffle=True)
+    train_batches = get_batches_aps('train', zone, data_shape, batch_size=batch_size, shuffle=True)
     steps_per_epoch = math.ceil(train_batches.samples / train_batches.batch_size)
     print(f"training sample size: {train_batches.samples}")
     print(f"training batch size: {train_batches.batch_size}, steps: {steps_per_epoch}")
 
-    val_batches = get_batches('valid', zone, data_shape, batch_size=batch_size, shuffle=True)    
+    val_batches = get_batches_aps('valid', zone, data_shape, batch_size=batch_size, shuffle=True)    
     validation_steps = math.ceil(val_batches.samples / val_batches.batch_size)
     print(f"validation sample size: {val_batches.samples}")
     print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
@@ -156,8 +172,7 @@ def train(zone, epochs=1, batch_size=20, learning_rate=0.001,
     if starting_weights_file is not None:
         swf_path = os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, starting_weights_file)
         ps_model.model.load_weights(swf_path)
-
-        
+    
     train_model = ps_model.model
     if gpus is not None:
         train_model = tf_util.multi_gpu_model(ps_model.model, gpus)
