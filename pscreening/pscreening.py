@@ -201,8 +201,10 @@ def train(zone, epochs=1, batch_size=24, learning_rate=0.001,
 
 def test(zone, batch_size=10, weights_file=None, evaluate=True, gpus=None):
     data_shape = sd.zones_max_dict(round_up=True)[zone]
+    # TODO: parameterize!
+    data_shape = (data_shape[0], 200, 200)
 
-    test_batches = get_batches('test', zone, data_shape, batch_size=batch_size, shuffle=False)
+    test_batches = get_batches_aps('test', zone, data_shape, batch_size=batch_size, shuffle=False)
     test_steps = math.ceil(test_batches.samples / test_batches.batch_size)
     print(f"test sample size: {test_batches.samples}")
     print(f"test batch size: {test_batches.batch_size}, steps: {test_steps}")
