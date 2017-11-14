@@ -3,10 +3,11 @@ import numpy as np
 import threading
 import multiprocessing.pool
 from functools import partial
+import util
 import setup_data as sd
 import scipy
 
-class ZoneGenerator():
+class ZoneApsGenerator():
     def __init__(self, 
                  dynamic_padding=False):
 
@@ -22,19 +23,19 @@ class ZoneGenerator():
     # the channels are added properly
     def flow_from_directory(self, 
                             base_dir,
-                            zone,
+                            zones,
                             data_shape=None,
                             channels=1,
                             batch_size=32, 
                             shuffle=True):
 
-        return ZoneFileIterator(base_dir,
-                                zone, 
-                                self, 
-                                data_shape=data_shape,
-                                channels=channels,
-                                batch_size=batch_size, 
-                                shuffle=shuffle)        
+        return ZoneApsFileIterator(base_dir,
+                                   zones, 
+                                   self, 
+                                   data_shape=data_shape,
+                                   channels=channels,
+                                   batch_size=batch_size, 
+                                   shuffle=shuffle)        
     
 # COPYRIGHT
 # 
@@ -186,24 +187,24 @@ def _list_valid_filenames_in_directory(directory, white_list_formats):
                 filenames.append(os.path.join(directory, fname))
     return filenames
 
-class ZoneFileIterator(Iterator):
-    """Iterator capable of reading zone numpy files from a directory on disk.
+class ZoneApsFileIterator(Iterator):
+    """Iterator capable of reading aps files from a directory on disk and extracting the zones to numpy arrays
 
     # Arguments
-        base_dir: base directory to read images from, that when combined with zone will form the full path
-        zone: Integer, zone #, used to get the proper labels
-        zone_data_generator: Instance of `ZoneGenerator`
-            to use for random transformations and normalization.
-        data_shape: Data shape as it is stored on disk (doesn't include channel) Ex. (5, 80, 180)
+        base_dir: base directory to read images from, that forms the full path
+        zones: list, zone #s, used to get the proper labels. First element is used to get zone rects
+        zone_data_generator: Instance of `ZoneGenerator` to use for random transformations and normalization.
+        data_shape: Data shape as it should be extracted as (doesn't include channel) Ex. (5, 80, 180). The image dimensions (ex. 80, 180)
+            will be resized to match the data_shape image dimensions
         channels: Channels to reshape to. When channels > 1, data is duplicated along that channel
         batch_size: Integer, size of a batch.
         shuffle: Boolean, whether to shuffle the data between epochs.
-        img_scale: Boolean, whether to scale numpy array values to [0, 255]
+        img_scale: Boolean, whether to scale raw data values to [0, 255]
     """
 
     def __init__(self, 
                  base_dir,
-                 zone,
+                 zones,
                  zone_data_generator,
                  data_shape=None,
                  channels=1,
@@ -211,24 +212,20 @@ class ZoneFileIterator(Iterator):
                  shuffle=True,
                  img_scale=True):
 
-        # TODO: Using keras built into tensorflow, should remove this when I'm sure I won't switch to a channels_first framework
-        #data_format = K.image_data_format()
-        data_format = 'channels_last'
-        if data_format == 'channels_last':
-            self.data_shape = data_shape + (channels,)
-        else:
-            self.data_shape = (data_shape[0],) + (channels,) + data_shape[1:]
+        self.data_shape = data_shape + (channels,)
         
         self.channels = channels
         
-        self.directory = os.path.join(base_dir, str(zone))
-        self.zone = zone
+        self.directory = base_dir
+        self.zones = zones
+        self.zone_indices = [z-1 for z in zones]
         self.zone_data_generator = zone_data_generator
         
         self.label_dict = sd.label_dict()
+        self.sample_dict = sd.sample_dict(zone=zones[0])
         self.img_scale = img_scale
 
-        white_list_formats = {'npy'}
+        white_list_formats = {'aps'}
 
         # first, count the number of samples
         self.samples = 0
@@ -257,6 +254,33 @@ class ZoneFileIterator(Iterator):
         pool.close()
         pool.join()
         super().__init__(self.samples, batch_size, shuffle)
+        
+    def _extract_zones(self, zone_rects, data):
+        """
+            Extracts zones from data based on zone_rects, resizes rects to data_shape, and reshapes to channel. Result is an array of the 
+            form self.data_shape
+        """
+        slice_data = np.zeros(self.data_shape, dtype=np.float32)
+        for j in range(zone_rects.shape[0]):
+            rb = zone_rects[j,2]
+            re = zone_rects[j,4]
+            cb = zone_rects[j,1]
+            ce = zone_rects[j,3]
+            
+            extraction = np.asarray(data[zone_rects[j,0]][rb:re,cb:ce])
+            extraction = scipy.misc.imresize(extraction, (self.data_shape[1], self.data_shape[2]))
+
+            # Zone data is extracted without the channel. Need to reshape here. If one channel, reshape is simple. If more than one
+            # data is duplicated 'channels' number of times
+            if self.channels == 1:
+                extraction = extraction.reshape(self.data_shape[1:])
+            else:
+                # TODO: duplicate the data value 'channels' times 
+                extraction = extraction.reshape(self.data_shape[1:]) 
+            
+            slice_data[j] = extraction
+
+        return slice_data
 
     def next(self):
         """For python 2.x.
@@ -269,23 +293,21 @@ class ZoneFileIterator(Iterator):
         # The transformation of images is not under thread lock
         # so it can be done in parallel
         batch_x = np.zeros((current_batch_size,) + self.data_shape, dtype=np.float32)
-        batch_y = np.zeros((current_batch_size, 1), dtype=np.float32)
+        batch_y = np.zeros((current_batch_size, len(self.zones)), dtype=np.float32)
         # build batch of image data
         for i, j in enumerate(index_array):
             fname = self.filenames[j]
             id =  os.path.splitext(os.path.basename(fname))[0]
-            data = np.load(fname)
+            
+            file_data = util.read_data(fname)
+            # TODO: convert to float here?
             if self.img_scale:
-                data = scipy.misc.bytescale(data)
+                file_data = scipy.misc.bytescale(np.asarray(file_data))
+                
+            zone_rects = self.sample_dict[id]
             
-            # Zone data is saved without the channel. Need to reshape here. If one channel, reshape is simple. If more than one
-            # data is duplicated 'channels' number of times
-            if self.channels == 1:
-                batch_x[i] = data.reshape(self.data_shape)
-            else:
-                # TODO: duplicate the data value 'channels' times 
-                batch_x[i] = data.reshape(self.data_shape)
+            batch_x[i] = self._extract_zones(zone_rects, file_data)
             
-            batch_y[i,0] = self.label_dict[id][self.zone-1]
+            batch_y[i] = self.label_dict[id][self.zone_indices]
 
         return batch_x, batch_y
