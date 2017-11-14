@@ -539,7 +539,8 @@ def create_zones16(file_images):
                                                                                                         slice_cursor=1, slice=15, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj, z_depth=z_depth)
     
     # Zeroing out these fringe slice zones to shrink model input. 
-    zones[2][6] = zones[2][8] = zones[6][6] = zones[6][8] = zones[10][7] = zones[10][10] = zones[14][7] = zones[14][10] = [0,0,0,0]    
+    zones[2][6] = zones[2][8] = zones[6][6] = zones[6][8] = zones[10][7] = zones[10][10] = zones[14][7] = zones[14][10] = [0,0,0,0]
+    zones[3][12] = zones[5][12] = zones[11][11] = zones[13][11] = [0,0,0,0]
     
     return zones
 
