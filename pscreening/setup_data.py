@@ -18,7 +18,7 @@ def sample_id_from_file(file_name):
 
 def label_dict(label_file='stage1_labels.csv'):
     """
-        Reads the label file and returns a dict of {id: [array of 0s and 1s]}. Index of label is (zone - 1).
+        Reads the label file and returns a dict of {id: [numpy array of 0s and 1s]}. Index of label is (zone - 1).
     """
     full_label_file = os.path.join(config.PSCREENING_HOME, label_file)
     
@@ -32,7 +32,7 @@ def label_dict(label_file='stage1_labels.csv'):
         for row in label_reader:
             id, zone_str = row[0].split('_')
             if id != cur_id:
-                label_dict[id] = [0 for i in range(17)]
+                label_dict[id] = np.array([0 for i in range(17)])
 
             zone_idx = int(zone_str.split('Zone')[-1])
             label_dict[id][zone_idx-1] = int(row[1])
@@ -58,8 +58,7 @@ def shuffled_files(src):
     print('Found %s files' % total_files)
     
     return np.random.permutation(src_files)
-            
-            
+                        
 def generate_combined(src='all', num=None, method='avg', img_scale=False):
     """
         Generates a combined file from aps files in the src_dir for help in identifying zones.

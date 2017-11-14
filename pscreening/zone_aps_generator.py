@@ -23,14 +23,14 @@ class ZoneApsGenerator():
     # the channels are added properly
     def flow_from_directory(self, 
                             base_dir,
-                            zone,
+                            zones,
                             data_shape=None,
                             channels=1,
                             batch_size=32, 
                             shuffle=True):
 
         return ZoneApsFileIterator(base_dir,
-                                   zone, 
+                                   zones, 
                                    self, 
                                    data_shape=data_shape,
                                    channels=channels,
@@ -192,7 +192,7 @@ class ZoneApsFileIterator(Iterator):
 
     # Arguments
         base_dir: base directory to read images from, that forms the full path
-        zone: Integer, zone #, used to get the proper labels
+        zones: list, zone #s, used to get the proper labels. First element is used to get zone rects
         zone_data_generator: Instance of `ZoneGenerator` to use for random transformations and normalization.
         data_shape: Data shape as it should be extracted as (doesn't include channel) Ex. (5, 80, 180). The image dimensions (ex. 80, 180)
             will be resized to match the data_shape image dimensions
@@ -204,7 +204,7 @@ class ZoneApsFileIterator(Iterator):
 
     def __init__(self, 
                  base_dir,
-                 zone,
+                 zones,
                  zone_data_generator,
                  data_shape=None,
                  channels=1,
@@ -217,11 +217,12 @@ class ZoneApsFileIterator(Iterator):
         self.channels = channels
         
         self.directory = base_dir
-        self.zone = zone
+        self.zones = zones
+        self.zone_indices = [z-1 for z in zones]
         self.zone_data_generator = zone_data_generator
         
         self.label_dict = sd.label_dict()
-        self.sample_dict = sd.sample_dict(zone=zone)
+        self.sample_dict = sd.sample_dict(zone=zones[0])
         self.img_scale = img_scale
 
         white_list_formats = {'aps'}
@@ -292,7 +293,7 @@ class ZoneApsFileIterator(Iterator):
         # The transformation of images is not under thread lock
         # so it can be done in parallel
         batch_x = np.zeros((current_batch_size,) + self.data_shape, dtype=np.float32)
-        batch_y = np.zeros((current_batch_size, 1), dtype=np.float32)
+        batch_y = np.zeros((current_batch_size, len(self.zones)), dtype=np.float32)
         # build batch of image data
         for i, j in enumerate(index_array):
             fname = self.filenames[j]
@@ -307,6 +308,6 @@ class ZoneApsFileIterator(Iterator):
             
             batch_x[i] = self._extract_zones(zone_rects, file_data)
             
-            batch_y[i,0] = self.label_dict[id][self.zone-1]
+            batch_y[i] = self.label_dict[id][self.zone_indices]
 
         return batch_x, batch_y

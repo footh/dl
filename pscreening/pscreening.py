@@ -15,7 +15,7 @@ import tf_util
 # All models will have an input_shape argument that includes the channel. Ex. (5, 80, 180, 1) or (5, 1, 80, 180)
 
 class PScreeningModel():
-    def __init__(self, multi_gpu=False):
+    def __init__(self, output=1, multi_gpu=False):
         cfg = tf.ConfigProto()
         cfg.gpu_options.allow_growth = True
         #cfg.log_device_placement = True
@@ -26,6 +26,7 @@ class PScreeningModel():
         
         self.input_shape = None
         self.multi_gpu = multi_gpu
+        self.output=output
 
     def get_image_model(self, input_shape):
         """
@@ -58,7 +59,7 @@ class PScreeningModel():
         x = tf.keras.layers.Dense(4096, activation='relu')(lstm_output)
         x = tf.keras.layers.Dropout(0.5)(x)
         #x = BatchNormalization()(x)
-        predictions = tf.keras.layers.Dense(1, activation = 'sigmoid')(x)
+        predictions = tf.keras.layers.Dense(self.output, activation = 'sigmoid')(x)
         
         return tf.keras.models.Model(inputs=frame_input, outputs=predictions)
     
@@ -129,7 +130,7 @@ def get_batches(src, zone, data_shape, batch_size=24, shuffle=True):
                                   batch_size=batch_size,
                                   shuffle=shuffle)
              
-def get_batches_aps(src, zone, data_shape, batch_size=24, shuffle=True):
+def get_batches_aps(src, zones, data_shape, batch_size=24, shuffle=True):
     """
         Get generator for files in src (train, valid, test, etc.) for given zone.
         TODO: For now, channels are assumed to be 1
@@ -138,32 +139,35 @@ def get_batches_aps(src, zone, data_shape, batch_size=24, shuffle=True):
     
     zg = zone_aps_generator.ZoneApsGenerator()
     return zg.flow_from_directory(base_dir,
-                                  zone,
+                                  zones,
                                   data_shape,
                                   batch_size=batch_size,
                                   shuffle=shuffle)
              
-def train(zone, epochs=1, batch_size=24, learning_rate=0.001, 
+def train(zones, epochs=1, batch_size=24, learning_rate=0.001, 
           version=None, gpus=None, mtype='vgg16', starting_weights_file=None):
-    data_shape = sd.zones_max_dict(round_up=True)[zone]
+    if not isinstance(zones, list):
+        zones = [zones]
+    
+    data_shape = sd.zones_max_dict(round_up=True)[zones[0]]
     # TODO: parameterize!
     data_shape = (data_shape[0], 200, 200)
 
-    train_batches = get_batches_aps('train', zone, data_shape, batch_size=batch_size, shuffle=True)
+    train_batches = get_batches_aps('train', zones, data_shape, batch_size=batch_size, shuffle=True)
     steps_per_epoch = math.ceil(train_batches.samples / train_batches.batch_size)
     print(f"training sample size: {train_batches.samples}")
     print(f"training batch size: {train_batches.batch_size}, steps: {steps_per_epoch}")
 
-    val_batches = get_batches_aps('valid', zone, data_shape, batch_size=batch_size, shuffle=True)    
+    val_batches = get_batches_aps('valid', zones, data_shape, batch_size=batch_size, shuffle=True)    
     validation_steps = math.ceil(val_batches.samples / val_batches.batch_size)
     print(f"validation sample size: {val_batches.samples}")
     print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
     
     ps_model = None
     if mtype == 'inception':
-        ps_model = InceptionModel(multi_gpu=(gpus is not None))
+        ps_model = InceptionModel(output=len(zones), multi_gpu=(gpus is not None))
     else:
-        ps_model = VGG16Model(multi_gpu=(gpus is not None))
+        ps_model = VGG16Model(output=len(zones), multi_gpu=(gpus is not None))
 
     #TODO: create the model with None as the time dimension? When looking at the code it looked like TimeDistributed
     #acts differently when None is passed as opposed to a fixed dimension. 
@@ -185,7 +189,7 @@ def train(zone, epochs=1, batch_size=24, learning_rate=0.001,
                               validation_steps=validation_steps,
                               class_weight={0:0.1, 1:0.90})
      
-    weights_version = f"zone{zone}-{ps_model.name}-e{epochs}-bs{batch_size}-lr{str(learning_rate).split('.')[1]}"
+    weights_version = f"zone{zone[0]}-{ps_model.name}-e{epochs}-bs{batch_size}-lr{str(learning_rate).split('.')[1]}"
     weights_version += f"-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}" 
     if version is not None:
         weights_version += f"-{version}"
@@ -199,12 +203,15 @@ def train(zone, epochs=1, batch_size=24, learning_rate=0.001,
      
     return weights_file
 
-def test(zone, batch_size=10, weights_file=None, evaluate=True, gpus=None):
-    data_shape = sd.zones_max_dict(round_up=True)[zone]
+def test(zones, batch_size=10, weights_file=None, evaluate=True, gpus=None):
+    if not isinstance(zones, list):
+        zones = [zones]
+    
+    data_shape = sd.zones_max_dict(round_up=True)[zone[0]]
     # TODO: parameterize!
     data_shape = (data_shape[0], 200, 200)
 
-    test_batches = get_batches_aps('test', zone, data_shape, batch_size=batch_size, shuffle=False)
+    test_batches = get_batches_aps('test', zones, data_shape, batch_size=batch_size, shuffle=False)
     test_steps = math.ceil(test_batches.samples / test_batches.batch_size)
     print(f"test sample size: {test_batches.samples}")
     print(f"test batch size: {test_batches.batch_size}, steps: {test_steps}")
@@ -212,9 +219,9 @@ def test(zone, batch_size=10, weights_file=None, evaluate=True, gpus=None):
     mtype = weights_file.split('-')[1]
     ps_model = None
     if mtype == 'inception':
-        ps_model = InceptionModel()
+        ps_model = InceptionModel(output=len(zones))
     else:
-        ps_model = VGG16Model()
+        ps_model = VGG16Model(output=len(zones))
 
     # Assuming one-channel inputs for now.
     ps_model.create(input_shape=test_batches.data_shape)
