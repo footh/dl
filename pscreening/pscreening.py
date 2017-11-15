@@ -209,7 +209,7 @@ def test(zones, batch_size=10, weights_file=None, evaluate=True, gpus=None):
     if not isinstance(zones, list):
         zones = [zones]
     
-    data_shape = sd.zones_max_dict(round_up=True)[zone[0]]
+    data_shape = sd.zones_max_dict(round_up=True)[zones[0]]
     # TODO: parameterize!
     data_shape = (data_shape[0], 200, 200)
 
