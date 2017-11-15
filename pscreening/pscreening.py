@@ -181,13 +181,15 @@ def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
     if gpus is not None:
         train_model = tf_util.multi_gpu_model(ps_model.model, gpus)
      
+    weight1 = round(0.9 ** len(zones), 2)
+    
     train_model.compile(optimizer=tf.keras.optimizers.Adam(lr=learning_rate), loss='binary_crossentropy', metrics=['accuracy']) 
     train_model.fit_generator(train_batches,
                               steps_per_epoch=steps_per_epoch,
                               epochs=epochs,
                               validation_data=val_batches, 
                               validation_steps=validation_steps,
-                              class_weight={0:0.1, 1:0.90})
+                              class_weight={0:1-weight1, 1:weight1})
      
     weights_version = f"zone{zone[0]}-{ps_model.name}-e{epochs}-bs{batch_size}-lr{str(learning_rate).split('.')[1]}"
     weights_version += f"-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}" 
