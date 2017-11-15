@@ -191,7 +191,7 @@ def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
                               validation_steps=validation_steps,
                               class_weight={0:1-weight1, 1:weight1})
      
-    weights_version = f"zone{zone[0]}-{ps_model.name}-e{epochs}-bs{batch_size}-lr{str(learning_rate).split('.')[1]}"
+    weights_version = f"zone{zones[0]}-{ps_model.name}-e{epochs}-bs{batch_size}-lr{str(learning_rate).split('.')[1]}"
     weights_version += f"-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}" 
     if version is not None:
         weights_version += f"-{version}"
