@@ -205,7 +205,7 @@ def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
      
     return weights_file
 
-def test(zones, batch_size=10, weights_file=None, evaluate=True, gpus=None):
+def test(zones, batch_size=10, weights_file=None, evaluate=True, gpus=None, mtype='vgg16'):
     if not isinstance(zones, list):
         zones = [zones]
     
