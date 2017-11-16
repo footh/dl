@@ -21,6 +21,18 @@ valid_zones_by_slice = [
 
 zone_padding = np.zeros((16, 18, 4), dtype=np.int16)
 
+zone_padding[0][1] = zone_padding[1][1] = zone_padding[2][1] = [-90,0,0,10]
+zone_padding[6][1] = zone_padding[7][1] = zone_padding[8][1] = [0,0,90,10]
+zone_padding[9][1] = zone_padding[10][1] = [0,0,90,10]
+zone_padding[11][1] = zone_padding[12][1] = zone_padding[13][1] = [-50,0,50,0]
+zone_padding[14][1] = zone_padding[15][1] = [-90,0,0,10]
+
+zone_padding[0][3] = zone_padding[1][3] = zone_padding[2][3] = [0,0,90,10]
+zone_padding[3][3] = zone_padding[4][3] = zone_padding[5][3] = [-50,0,50,0]
+zone_padding[6][3] = zone_padding[7][3] = zone_padding[8][3] = [-90,0,0,10]
+zone_padding[9][3] = zone_padding[10][3] = [-90,0,0,10]
+zone_padding[14][3] = zone_padding[15][3] = [0,0,90,10]
+
 zone_padding[0][5] = zone_padding[1][5] = zone_padding[2][5] = zone_padding[14][5] = zone_padding[15][5] = [0,0,0,10]
 zone_padding[0][6] = zone_padding[1][6] = zone_padding[2][6] = zone_padding[14][6] = zone_padding[15][6] = [-50,0,10,10]
 zone_padding[0][7] = zone_padding[1][7] = zone_padding[2][7] = zone_padding[14][7] = zone_padding[15][7] = [-10,0,50,10]
