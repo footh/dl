@@ -271,7 +271,7 @@ def test(zones, src='test', batch_size=10, weights_file=None, evaluate=True, gpu
 def create_submission_file():
     import csv
     
-    base_dir = os.path.join(config.PSCREENING_HOME, config.SUBMISSION_WEIGHTS_DIR)
+    base_dir = os.path.join(config.PSCREENING_HOME, 'submission-' + config.WEIGHTS_DIR)
     weight_files = os.listdir(base_dir)
     
     zone_weight_dict = defaultdict(list)
