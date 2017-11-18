@@ -27,7 +27,8 @@ class ZoneApsGenerator():
                             data_shape=None,
                             channels=1,
                             batch_size=32, 
-                            shuffle=True):
+                            shuffle=True,
+                            labels=True):
 
         return ZoneApsFileIterator(base_dir,
                                    zones, 
@@ -35,7 +36,8 @@ class ZoneApsGenerator():
                                    data_shape=data_shape,
                                    channels=channels,
                                    batch_size=batch_size, 
-                                   shuffle=shuffle)        
+                                   shuffle=shuffle,
+                                   labels=labels)        
     
 # COPYRIGHT
 # 
@@ -200,6 +202,7 @@ class ZoneApsFileIterator(Iterator):
         batch_size: Integer, size of a batch.
         shuffle: Boolean, whether to shuffle the data between epochs.
         img_scale: Boolean, whether to scale raw data values to [0, 255]
+        labels: Boolean, whether to return labels in results (don't need labels for predicting)
     """
 
     def __init__(self, 
@@ -210,7 +213,8 @@ class ZoneApsFileIterator(Iterator):
                  channels=1,
                  batch_size=32,
                  shuffle=True,
-                 img_scale=True):
+                 img_scale=True,
+                 labels=True):
 
         self.data_shape = data_shape + (channels,)
         
@@ -224,6 +228,7 @@ class ZoneApsFileIterator(Iterator):
         self.label_dict = sd.label_dict()
         self.sample_dict = sd.sample_dict(zone=zones[0])
         self.img_scale = img_scale
+        self.labels=labels
 
         white_list_formats = {'aps'}
 
@@ -308,6 +313,10 @@ class ZoneApsFileIterator(Iterator):
             
             batch_x[i] = self._extract_zones(zone_rects, file_data)
             
-            batch_y[i] = self.label_dict[id][self.zone_indices]
+            if self.labels:
+                batch_y[i] = self.label_dict[id][self.zone_indices]
 
-        return batch_x, batch_y
+        if self.labels:
+            return batch_x, batch_y
+        else:
+            return batch_x

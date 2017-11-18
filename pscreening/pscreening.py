@@ -131,7 +131,7 @@ def get_batches(src, zone, data_shape, batch_size=24, shuffle=True):
                                   batch_size=batch_size,
                                   shuffle=shuffle)
              
-def get_batches_aps(src, zones, data_shape, batch_size=24, shuffle=True):
+def get_batches_aps(src, zones, data_shape, batch_size=24, shuffle=True, labels=True):
     """
         Get generator for files in src (train, valid, test, etc.) for given zone.
         TODO: For now, channels are assumed to be 1
@@ -143,7 +143,8 @@ def get_batches_aps(src, zones, data_shape, batch_size=24, shuffle=True):
                                   zones,
                                   data_shape,
                                   batch_size=batch_size,
-                                  shuffle=shuffle)
+                                  shuffle=shuffle,
+                                  labels=labels)
              
 def train(zones, epochs=1, batch_size=24, learning_rate=0.001, 
           version=None, gpus=None, mtype='vgg16', starting_weights_file=None):
@@ -205,15 +206,14 @@ def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
      
     return weights_file
 
-def test(zones, src='test', batch_size=10, weights_file=None, evaluate=True, 
-         gpus=None, weights_dir=config.WEIGHTS_DIR):
+def test(zones, src='test', batch_size=10, weights_file=None, evaluate=True, gpus=None):
     if not isinstance(zones, list): zones = [zones]
     
     data_shape = sd.zones_max_dict(round_up=True)[zones[0]]
     # TODO: parameterize!
     data_shape = (data_shape[0], 200, 200)
 
-    test_batches = get_batches_aps(src, zones, data_shape, batch_size=batch_size, shuffle=False)
+    test_batches = get_batches_aps(src, zones, data_shape, batch_size=batch_size, shuffle=False, labels=evaluate)
     test_steps = math.ceil(test_batches.samples / test_batches.batch_size)
     print(f"test sample size: {test_batches.samples}")
     print(f"test batch size: {test_batches.batch_size}, steps: {test_steps}")
@@ -229,6 +229,8 @@ def test(zones, src='test', batch_size=10, weights_file=None, evaluate=True,
     ps_model.create(input_shape=test_batches.data_shape)
     ps_model.model.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001), loss='binary_crossentropy', metrics=['accuracy'])
 
+    weights_dir = config.WEIGHTS_DIR
+    if src == 'submission': weights_dir = 'submission-' + weights_dir
     weights_file_path = os.path.join(config.PSCREENING_HOME, weights_dir, weights_file)
     ps_model.model.load_weights(weights_file_path)
     
@@ -244,6 +246,8 @@ def test(zones, src='test', batch_size=10, weights_file=None, evaluate=True,
     return results
 
 def create_submission_file():
+    import csv
+    
     base_dir = os.path.join(config.PSCREENING_HOME, config.SUBMISSION_WEIGHTS_DIR)
     weight_files = os.listdir(base_dir)
     
@@ -254,17 +258,32 @@ def create_submission_file():
             mtype = file.split('-')[1]
             zone_weight_dict[zone].append(file)
 
-    for key, val in sorted(zone_weight_dict.items()):
-        zones = [key]
-        if key == 1: zones += [2]
-        if key == 3: zones += [4]
-        if key == 11: zones += [13,15]
-        if key == 12: zones += [14,16]
+    submission_results = []
+    for key_zone, weights_files in sorted(zone_weight_dict.items()):
+        zones = [key_zone]
+        if key_zone == 1: zones += [2]
+        if key_zone == 3: zones += [4]
+        if key_zone == 11: zones += [13,15]
+        if key_zone == 12: zones += [14,16]
 
+        # TODO: Just using the first weight file. Ensembling TBD.
+        weights_file = weights_files[0]
+        
+        print(f"Getting results for zones {zones} and weights_file: {weights_file}...")
         # Clear session after each run? tf.keras.backend.clear_session()
-        test(zones, src='submission', weights_file=val, weights_dir=config.SUBMISSION_WEIGHTS_DIR, evaluate=False)
+        results_dict = test(zones, src='submission', batch_size=4, weights_file=weights_file, evaluate=False)
+        print(f"Finished getting results, adding to results...")
         
-        
-        
+        for id, results in results_dict.items():
+            for i, zone in enumerate(zones):
+                submission_results.append([id, zone, results[i]])
+                
+    print(f"Writing to file...")
+    submission_results.sort()    
+    with open('submission.csv', 'w') as submission_file:
+        wr = csv.writer(submission_file, delimiter=',')
+        wr.writerow(['Id', 'Probability'])
 
-    
+        for submission_result in submission_results:
+            id_zone = submission_result[0] + '_Zone' + str(submission_result[1])
+            wr.writerow([id_zone, submission_result[2]])
