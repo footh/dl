@@ -10,6 +10,7 @@ import math
 import datetime
 import os
 import tf_util
+from collections import defaultdict
 
 # NOTES:
 # All models will have an input_shape argument that includes the channel. Ex. (5, 80, 180, 1) or (5, 1, 80, 180)
@@ -146,8 +147,7 @@ def get_batches_aps(src, zones, data_shape, batch_size=24, shuffle=True):
              
 def train(zones, epochs=1, batch_size=24, learning_rate=0.001, 
           version=None, gpus=None, mtype='vgg16', starting_weights_file=None):
-    if not isinstance(zones, list):
-        zones = [zones]
+    if not isinstance(zones, list): zones = [zones]
     
     data_shape = sd.zones_max_dict(round_up=True)[zones[0]]
     # TODO: parameterize!
@@ -205,20 +205,20 @@ def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
      
     return weights_file
 
-def test(zones, batch_size=10, weights_file=None, evaluate=True, gpus=None):
-    if not isinstance(zones, list):
-        zones = [zones]
+def test(zones, src='test', batch_size=10, weights_file=None, evaluate=True, 
+         gpus=None, weights_dir=config.WEIGHTS_DIR):
+    if not isinstance(zones, list): zones = [zones]
     
     data_shape = sd.zones_max_dict(round_up=True)[zones[0]]
     # TODO: parameterize!
     data_shape = (data_shape[0], 200, 200)
 
-    test_batches = get_batches_aps('test', zones, data_shape, batch_size=batch_size, shuffle=False)
+    test_batches = get_batches_aps(src, zones, data_shape, batch_size=batch_size, shuffle=False)
     test_steps = math.ceil(test_batches.samples / test_batches.batch_size)
     print(f"test sample size: {test_batches.samples}")
     print(f"test batch size: {test_batches.batch_size}, steps: {test_steps}")
 
-    mtype = weights_file.split('-')[1]
+    mtype = sd.get_file_name(weights_file).split('-')[1]
     ps_model = None
     if mtype == 'inception':
         ps_model = InceptionModel(output=len(zones))
@@ -229,7 +229,7 @@ def test(zones, batch_size=10, weights_file=None, evaluate=True, gpus=None):
     ps_model.create(input_shape=test_batches.data_shape)
     ps_model.model.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001), loss='binary_crossentropy', metrics=['accuracy'])
 
-    weights_file_path = os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, weights_file)
+    weights_file_path = os.path.join(config.PSCREENING_HOME, weights_dir, weights_file)
     ps_model.model.load_weights(weights_file_path)
     
     results = None
@@ -237,7 +237,34 @@ def test(zones, batch_size=10, weights_file=None, evaluate=True, gpus=None):
         results = ps_model.model.evaluate_generator(test_batches, test_steps)
     else:
         results = ps_model.model.predict_generator(test_batches, test_steps)
+        # The 'filenames' argument is expected to be the order of the results since shuffle is set to False
+        ids = [sd.get_file_name(fname) for fname in test_batches.filenames]
+        results = dict(zip(ids, results))
 
     return results
+
+def create_submission_file():
+    base_dir = os.path.join(config.PSCREENING_HOME, config.SUBMISSION_WEIGHTS_DIR)
+    weight_files = os.listdir(base_dir)
+    
+    zone_weight_dict = defaultdict(list)
+    for file in weight_files:
+        if os.path.isfile(os.path.join(base_dir, file)):
+            zone = int(file.split('-')[0].replace('zone', ''))
+            mtype = file.split('-')[1]
+            zone_weight_dict[zone].append(file)
+
+    for key, val in sorted(zone_weight_dict.items()):
+        zones = [key]
+        if key == 1: zones += [2]
+        if key == 3: zones += [4]
+        if key == 11: zones += [13,15]
+        if key == 12: zones += [14,16]
+
+        # Clear session after each run? tf.keras.backend.clear_session()
+        test(zones, src='submission', weights_file=val, weights_dir=config.SUBMISSION_WEIGHTS_DIR, evaluate=False)
+        
+        
+        
 
     
