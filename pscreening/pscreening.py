@@ -94,13 +94,13 @@ class InceptionModel(PScreeningModel):
     def get_image_model(self, img_shape):
         # Note on adding 'input_shape', if I didn't do this, the input shape would be (None, None, None, 3). This might be OK since it's a convnet but
         # I'd rather be explicit. I'm wondering why Keras doesn't figure out since it's added to an output of this shape?
-        inception_model = tf.keras.applications.InceptionV3(weights='imagenet', include_top=False, input_shape=img_shape)
+        model = tf.keras.applications.InceptionV3(weights='imagenet', include_top=False, input_shape=img_shape)
         # Freezing the weights for the pre-trained model (TODO: should I let later layers be trained?)
-        for layer in inception_model.layers:
-            print(f"inception layer: {layer}")
+        for layer in model.layers:
+            #print(f"inception layer: {layer}")
             layer.trainable = False
 
-        return inception_model
+        return model
 
 class VGG16Model(PScreeningModel):
     def __init__(self, *args, **kwargs):
@@ -111,13 +111,13 @@ class VGG16Model(PScreeningModel):
         # Note on adding 'input_shape', if I didn't do this, the input shape would be (None, None, None, 3). This might be OK since it's a convnet but
         # I'd rather be explicit. I'm wondering why Keras doesn't figure out since it's added to an output of this shape?
         #TODO: look into the pooling argument here!!!
-        vgg16_model = tf.keras.applications.VGG16(weights='imagenet', include_top=False, input_shape=img_shape)
+        model = tf.keras.applications.VGG16(weights='imagenet', include_top=False, input_shape=img_shape)
         # Freezing the weights for the pre-trained model (TODO: should I let later layers be trained?)
-        for layer in vgg16_model.layers:
-            print(f"vgg16 layer: {layer}")
+        for layer in model.layers:
+            #print(f"vgg16 layer: {layer}")
             layer.trainable = False
 
-        return vgg16_model
+        return model
     
 class ResNet50Model(PScreeningModel):
     def __init__(self, *args, **kwargs):
@@ -128,14 +128,31 @@ class ResNet50Model(PScreeningModel):
         # Note on adding 'input_shape', if I didn't do this, the input shape would be (None, None, None, 3). This might be OK since it's a convnet but
         # I'd rather be explicit. I'm wondering why Keras doesn't figure out since it's added to an output of this shape?
         #TODO: look into the pooling argument here!!!
-        resnet50_model = tf.keras.applications.ResNet50(weights='imagenet', include_top=False, input_shape=img_shape)
+        model = tf.keras.applications.ResNet50(weights='imagenet', include_top=False, input_shape=img_shape)
         # Freezing the weights for the pre-trained model (TODO: should I let later layers be trained?)
-        for layer in resnet50_model.layers:
-            print(f"resnet50 layer: {layer}")
+        for layer in model.layers:
+            #print(f"resnet50 layer: {layer}")
             layer.trainable = False
 
-        return resnet50_model
-      
+        return model
+    
+class InceptionResNetModel(PScreeningModel):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.name = 'inceptionresnet'
+        
+    def get_image_model(self, img_shape):
+        # Note on adding 'input_shape', if I didn't do this, the input shape would be (None, None, None, 3). This might be OK since it's a convnet but
+        # I'd rather be explicit. I'm wondering why Keras doesn't figure out since it's added to an output of this shape?
+        #TODO: look into the pooling argument here!!!
+        model = tf.keras.applications.InceptionResNetV2(weights='imagenet', include_top=False, input_shape=img_shape)
+        # Freezing the weights for the pre-trained model (TODO: should I let later layers be trained?)
+        for layer in model.layers:
+            #print(f"resnet50 layer: {layer}")
+            layer.trainable = False
+
+        return model
+     
 def get_batches(src, zone, data_shape, batch_size=24, shuffle=True):
     """
         Get generator for files in src (train, valid, test, etc.) for given zone.
@@ -188,6 +205,8 @@ def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
         ps_model = InceptionModel(output=len(zones), multi_gpu=(gpus is not None))
     elif mtype == 'resnet50':
         ps_model = ResNet50Model(output=len(zones), multi_gpu=(gpus is not None))
+    elif mtype == 'inceptionresnet':
+        ps_model = InceptionResNetModel(output=len(zones), multi_gpu=(gpus is not None))
     else:
         ps_model = VGG16Model(output=len(zones), multi_gpu=(gpus is not None))
 
@@ -245,6 +264,8 @@ def test(zones, src='test', batch_size=10, weights_file=None, evaluate=True, gpu
         ps_model = InceptionModel(output=len(zones))
     elif mtype == 'resnet50':
         ps_model = ResNet50Model(output=len(zones))
+    elif mtype == 'inceptionresnet':
+        ps_model = InceptionResNetModel(output=len(zones))
     else:
         ps_model = VGG16Model(output=len(zones))
 
