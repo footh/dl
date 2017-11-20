@@ -36,7 +36,7 @@ class PScreeningModel():
         learn_channels = True
         if self.input_shape[3] == 3: learn_channels = False
 
-        img_shape = input_shape[1:3] + (3,)
+        img_shape = self.input_shape[1:3] + (3,)
         print(f"img_shape: {img_shape}")
         
         #---------------------
