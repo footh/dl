@@ -222,17 +222,17 @@ def get_batches_aps(src, zones, data_shape, channels=1, batch_size=24, shuffle=T
            
 def _get_model(mtype, output=1, multi_gpu=False):
     if mtype == 'inception':
-        ps_model = InceptionModel(output=len(zones), multi_gpu=multi_gpu)
+        ps_model = InceptionModel(output=output, multi_gpu=multi_gpu)
     elif mtype == 'resnet50':
-        ps_model = ResNet50Model(output=len(zones), multi_gpu=multi_gpu)
+        ps_model = ResNet50Model(output=output, multi_gpu=multi_gpu)
     elif mtype == 'inceptionresnet':
-        ps_model = InceptionResNetModel(output=len(zones), multi_gpu=multi_gpu)
+        ps_model = InceptionResNetModel(output=output, multi_gpu=multi_gpu)
     elif mtype == 'xception':
-        ps_model = XceptionModel(output=len(zones), multi_gpu=multi_gpu)
+        ps_model = XceptionModel(output=output, multi_gpu=multi_gpu)
     elif mtype == 'mobilenet':
-        ps_model = MobileNetModel(output=len(zones), multi_gpu=multi_gpu)
+        ps_model = MobileNetModel(output=output, multi_gpu=multi_gpu)
     else:
-        ps_model = VGG16Model(output=len(zones), multi_gpu=multi_gpu)
+        ps_model = VGG16Model(output=output, multi_gpu=multi_gpu)
         
 def key_zone_to_zones(key_zone):
     zones = [key_zone]
