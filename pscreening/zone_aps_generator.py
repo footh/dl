@@ -281,7 +281,7 @@ class ZoneApsFileIterator(Iterator):
                 extraction = extraction.reshape(self.data_shape[1:])
             else:
                 # TODO: duplicate the data value 'channels' times 
-                extraction = extraction.reshape(self.data_shape[1:]) 
+                extraction = extraction.reshape(self.data_shape[1:])
             
             slice_data[j] = extraction
 

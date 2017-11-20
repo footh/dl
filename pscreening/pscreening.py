@@ -12,9 +12,6 @@ import os
 import tf_util
 from collections import defaultdict
 
-# NOTES:
-# All models will have an input_shape argument that includes the channel. Ex. (5, 80, 180, 1) or (5, 1, 80, 180)
-
 class PScreeningModel():
     def __init__(self, output=1, multi_gpu=False):
         cfg = tf.ConfigProto()
@@ -35,13 +32,20 @@ class PScreeningModel():
         """
         raise NotImplementedError
     
-    def build_model(self, img_shape):
+    def build_model(self):
+        learn_channels = True
+        if self.input_shape[3] == 3: learn_channels = False
+
+        img_shape = input_shape[1:3] + (3,)
+        print(f"img_shape: {img_shape}")
+        
         #---------------------
         # Vision model creation for just one frame of the input data. This will be used in the TimeDistributed layer to consume all the frames.
         # This section will convert the 1-channel image into three channels. Got idea from here: http://forums.fast.ai/t/black-and-white-images-on-vgg16/2479/13
         vision_model = tf.keras.models.Sequential()
-        vision_model.add(tf.keras.layers.Conv2D(10, kernel_size=(1,1), padding='same', activation='relu', input_shape=(self.input_shape[1:])))
-        vision_model.add(tf.keras.layers.Conv2D(3, kernel_size=(1,1), padding='same', activation='relu'))
+        if learn_channels:
+            vision_model.add(tf.keras.layers.Conv2D(10, kernel_size=(1,1), padding='same', activation='relu', input_shape=(self.input_shape[1:])))
+            vision_model.add(tf.keras.layers.Conv2D(3, kernel_size=(1,1), padding='same', activation='relu'))
 
         # Now getting the image model with pre-trained weights for some transfer learning. Implemented by child classes.
         img_model = self.get_image_model(img_shape)
@@ -67,22 +71,21 @@ class PScreeningModel():
     def create(self, input_shape=None):
         """
             Build the model and display the summary
+            Models will have an input_shape argument that includes the channel. Ex. (5, 200, 200, 1)
         """
         img_shape = None
         if input_shape is not None:
             self.input_shape = input_shape
-            print(f"input_shape: {self.input_shape}")
-            img_shape = input_shape[1:3] + (3,)
-            print(f"img_shape: {img_shape}")
+            print(f"input_shape: {self.input_shape}")            
         else:
             print(f"No input shape given. Model cannot be created")
             return
 
         if self.multi_gpu:
             with tf.device('/device:CPU:0'):
-                self.model = self.build_model(img_shape)
+                self.model = self.build_model()
         else:
-            self.model = self.build_model(img_shape)
+            self.model = self.build_model()
         
         self.model.summary()        
 
@@ -186,8 +189,7 @@ class MobileNetModel(PScreeningModel):
             layer.trainable = False
 
         return model
-
-        
+   
 def get_batches(src, zone, data_shape, batch_size=24, shuffle=True):
     """
         Get generator for files in src (train, valid, test, etc.) for given zone.
@@ -202,7 +204,7 @@ def get_batches(src, zone, data_shape, batch_size=24, shuffle=True):
                                   batch_size=batch_size,
                                   shuffle=shuffle)
              
-def get_batches_aps(src, zones, data_shape, batch_size=24, shuffle=True, labels=True):
+def get_batches_aps(src, zones, data_shape, channels=1, batch_size=24, shuffle=True, labels=True):
     """
         Get generator for files in src (train, valid, test, etc.) for given zone.
         TODO: For now, channels are assumed to be 1
@@ -212,42 +214,64 @@ def get_batches_aps(src, zones, data_shape, batch_size=24, shuffle=True, labels=
     zg = zone_aps_generator.ZoneApsGenerator()
     return zg.flow_from_directory(base_dir,
                                   zones,
-                                  data_shape,
+                                  data_shape=data_shape,
+                                  channels=channels,
                                   batch_size=batch_size,
                                   shuffle=shuffle,
                                   labels=labels)
+           
+def _build_model(mtype, output=1, multi_gpu=False):
+    if mtype == 'inception':
+        ps_model = InceptionModel(output=len(zones), multi_gpu=multi_gpu)
+    elif mtype == 'resnet50':
+        ps_model = ResNet50Model(output=len(zones), multi_gpu=multi_gpu)
+    elif mtype == 'inceptionresnet':
+        ps_model = InceptionResNetModel(output=len(zones), multi_gpu=multi_gpu)
+    elif mtype == 'xception':
+        ps_model = XceptionModel(output=len(zones), multi_gpu=multi_gpu)
+    elif mtype == 'mobilenet':
+        ps_model = MobileNetModel(output=len(zones), multi_gpu=multi_gpu)
+    else:
+        ps_model = VGG16Model(output=len(zones), multi_gpu=multi_gpu)
+        
+def key_zone_to_zones(key_zone):
+    zones = [key_zone]
+    if key_zone == 1: zones += [2]
+    if key_zone == 3: zones += [4]
+    if key_zone == 11: zones += [13,15]
+    if key_zone == 12: zones += [14,16]
+    return zones
+
+def _model_params(weights_file):
+    params = sd.get_file_name(weights_file).split('-')
+    
+    key_zone = int(params[0].replace('zone', ''))
+    zones = key_zone_to_zones(key_zone)
+    mtype = params[1]
+    img_dim = int(params[2].replace('d', ''))
+    channels = int(params[3].replace('c', ''))
+    
+    return key_zone, zones, mtype, img_dim, channels
              
-def train(zones, epochs=1, batch_size=24, learning_rate=0.001, 
-          version=None, gpus=None, mtype='vgg16', starting_weights_file=None):
+def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
+          version=None, gpus=None, mtype='vgg16', starting_weights_file=None,
+          img_dim=200, channels=1):
     if not isinstance(zones, list): zones = [zones]
     
     data_shape = sd.zones_max_dict(round_up=True)[zones[0]]
-    # TODO: parameterize!
-    data_shape = (data_shape[0], 200, 200)
+    data_shape = (data_shape[0],) + (img_dim, img_dim)
 
-    train_batches = get_batches_aps('train', zones, data_shape, batch_size=batch_size, shuffle=True)
+    train_batches = get_batches_aps('train', zones, data_shape, channels=channels, batch_size=batch_size, shuffle=True)
     steps_per_epoch = math.ceil(train_batches.samples / train_batches.batch_size)
     print(f"training sample size: {train_batches.samples}")
     print(f"training batch size: {train_batches.batch_size}, steps: {steps_per_epoch}")
 
-    val_batches = get_batches_aps('valid', zones, data_shape, batch_size=batch_size, shuffle=True)    
+    val_batches = get_batches_aps('valid', zones, data_shape, channels=channels, batch_size=batch_size, shuffle=True)    
     validation_steps = math.ceil(val_batches.samples / val_batches.batch_size)
     print(f"validation sample size: {val_batches.samples}")
     print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
     
-    ps_model = None
-    if mtype == 'inception':
-        ps_model = InceptionModel(output=len(zones), multi_gpu=(gpus is not None))
-    elif mtype == 'resnet50':
-        ps_model = ResNet50Model(output=len(zones), multi_gpu=(gpus is not None))
-    elif mtype == 'inceptionresnet':
-        ps_model = InceptionResNetModel(output=len(zones), multi_gpu=(gpus is not None))
-    elif mtype == 'xception':
-        ps_model = XceptionModel(output=len(zones), multi_gpu=(gpus is not None))
-    elif mtype == 'mobilenet':
-        ps_model = MobileNetModel(output=len(zones), multi_gpu=(gpus is not None))
-    else:
-        ps_model = VGG16Model(output=len(zones), multi_gpu=(gpus is not None))
+    ps_model = _build_model(mtype, output=len(zones), multi_gpu=(gpus is not None))
 
     #TODO: create the model with None as the time dimension? When looking at the code it looked like TimeDistributed
     #acts differently when None is passed as opposed to a fixed dimension. 
@@ -271,7 +295,7 @@ def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
                               validation_steps=validation_steps,
                               class_weight={0:1-weight1, 1:weight1})
      
-    weights_version = f"zone{zones[0]}-{ps_model.name}-e{epochs}-bs{batch_size}-lr{str(learning_rate).split('.')[1]}"
+    weights_version = f"zone{zones[0]}-{ps_model.name}-d{img_dim}-c{channels}-e{epochs}-bs{batch_size}-lr{str(learning_rate).split('.')[1]}"
     weights_version += f"-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}" 
     if version is not None:
         weights_version += f"-{version}"
@@ -285,32 +309,22 @@ def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
      
     return weights_file
 
-def test(zones, src='test', batch_size=10, weights_file=None, evaluate=True, gpus=None):
-    if not isinstance(zones, list): zones = [zones]
+def test(src='test', batch_size=10, weights_file=None, evaluate=True, gpus=None):
+    if weights_file is None:
+        print(f"Need weights file to test.")
+        return
+    
+    key_zone, zones, mtype, img_dim, channels = _model_params(weights_file)
     
     data_shape = sd.zones_max_dict(round_up=True)[zones[0]]
-    # TODO: parameterize!
-    data_shape = (data_shape[0], 200, 200)
+    data_shape = (data_shape[0],) + (img_dim, img_dim)
 
     test_batches = get_batches_aps(src, zones, data_shape, batch_size=batch_size, shuffle=False, labels=evaluate)
     test_steps = math.ceil(test_batches.samples / test_batches.batch_size)
     print(f"test sample size: {test_batches.samples}")
     print(f"test batch size: {test_batches.batch_size}, steps: {test_steps}")
 
-    mtype = sd.get_file_name(weights_file).split('-')[1]
-    ps_model = None
-    if mtype == 'inception':
-        ps_model = InceptionModel(output=len(zones))
-    elif mtype == 'resnet50':
-        ps_model = ResNet50Model(output=len(zones))
-    elif mtype == 'inceptionresnet':
-        ps_model = InceptionResNetModel(output=len(zones))
-    elif mtype == 'xception':
-        ps_model = XceptionModel(output=len(zones))
-    elif mtype == 'mobilenet':
-        ps_model = MobileNetModel(output=len(zones))
-    else:
-        ps_model = VGG16Model(output=len(zones))
+    ps_model = _build_model(mtype, output=len(zones))
 
     # Assuming one-channel inputs for now.
     ps_model.create(input_shape=test_batches.data_shape)
@@ -338,27 +352,22 @@ def create_submission_file():
     base_dir = os.path.join(config.PSCREENING_HOME, 'submission-' + config.WEIGHTS_DIR)
     weight_files = os.listdir(base_dir)
     
+    # zone_weight_dict is a dict of key_zone: [list of weights files]
     zone_weight_dict = defaultdict(list)
     for file in weight_files:
         if os.path.isfile(os.path.join(base_dir, file)):
-            zone = int(file.split('-')[0].replace('zone', ''))
-            mtype = file.split('-')[1]
-            zone_weight_dict[zone].append(file)
+            key_zone, _, _, _, _ = _model_params(file)
+            zone_weight_dict[key_zone].append(file)
 
     submission_results = []
     for key_zone, weights_files in sorted(zone_weight_dict.items()):
-        zones = [key_zone]
-        if key_zone == 1: zones += [2]
-        if key_zone == 3: zones += [4]
-        if key_zone == 11: zones += [13,15]
-        if key_zone == 12: zones += [14,16]
 
         # TODO: Just using the first weight file. Ensembling TBD.
         weights_file = weights_files[0]
         
-        print(f"Getting results for zones {zones} and weights_file: {weights_file}...")
+        print(f"Getting results for key_zone {key_zone} using weights_file: {weights_file}...")
         # Clear session after each run? tf.keras.backend.clear_session()
-        results_dict = test(zones, src='submission', batch_size=4, weights_file=weights_file, evaluate=False)
+        results_dict = test(src='submission', batch_size=4, weights_file=weights_file, evaluate=False)
         print(f"Finished getting results, adding to results...")
         
         for id, results in results_dict.items():
@@ -366,8 +375,9 @@ def create_submission_file():
                 submission_results.append([id, zone, results[i]])
                 
     print(f"Writing to file...")
-    submission_results.sort()    
-    with open('submission.csv', 'w') as submission_file:
+    submission_results.sort()
+    submission_file_name = f"submission-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
+    with open(submission_file_name, 'w') as submission_file:
         wr = csv.writer(submission_file, delimiter=',')
         wr.writerow(['Id', 'Probability'])
 
