@@ -220,7 +220,7 @@ def get_batches_aps(src, zones, data_shape, channels=1, batch_size=24, shuffle=T
                                   shuffle=shuffle,
                                   labels=labels)
            
-def _build_model(mtype, output=1, multi_gpu=False):
+def _get_model(mtype, output=1, multi_gpu=False):
     if mtype == 'inception':
         ps_model = InceptionModel(output=len(zones), multi_gpu=multi_gpu)
     elif mtype == 'resnet50':
@@ -271,7 +271,7 @@ def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
     print(f"validation sample size: {val_batches.samples}")
     print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
     
-    ps_model = _build_model(mtype, output=len(zones), multi_gpu=(gpus is not None))
+    ps_model = _get_model(mtype, output=len(zones), multi_gpu=(gpus is not None))
 
     #TODO: create the model with None as the time dimension? When looking at the code it looked like TimeDistributed
     #acts differently when None is passed as opposed to a fixed dimension. 
@@ -309,7 +309,7 @@ def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
      
     return weights_file
 
-def test(src='test', batch_size=10, weights_file=None, evaluate=True, gpus=None):
+def test(weights_file, src='test', batch_size=10, evaluate=True, gpus=None):
     if weights_file is None:
         print(f"Need weights file to test.")
         return
@@ -319,12 +319,12 @@ def test(src='test', batch_size=10, weights_file=None, evaluate=True, gpus=None)
     data_shape = sd.zones_max_dict(round_up=True)[zones[0]]
     data_shape = (data_shape[0],) + (img_dim, img_dim)
 
-    test_batches = get_batches_aps(src, zones, data_shape, batch_size=batch_size, shuffle=False, labels=evaluate)
+    test_batches = get_batches_aps(src, zones, data_shape, channels=channels, batch_size=batch_size, shuffle=False, labels=evaluate)
     test_steps = math.ceil(test_batches.samples / test_batches.batch_size)
     print(f"test sample size: {test_batches.samples}")
     print(f"test batch size: {test_batches.batch_size}, steps: {test_steps}")
 
-    ps_model = _build_model(mtype, output=len(zones))
+    ps_model = _get_model(mtype, output=len(zones))
 
     # Assuming one-channel inputs for now.
     ps_model.create(input_shape=test_batches.data_shape)
