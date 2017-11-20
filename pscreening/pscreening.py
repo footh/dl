@@ -363,13 +363,14 @@ def create_submission_file():
 
     submission_results = []
     for key_zone, weights_files in sorted(zone_weight_dict.items()):
-
+        
         # TODO: Just using the first weight file. Ensembling TBD.
         weights_file = weights_files[0]
-        
+        _, zones, _, _, _ = _model_params(weights_file)
+
         print(f"Getting results for key_zone {key_zone} using weights_file: {weights_file}...")
         # Clear session after each run? tf.keras.backend.clear_session()
-        results_dict = test(src='submission', batch_size=4, weights_file=weights_file, evaluate=False)
+        results_dict = test(weights_file, src='submission', batch_size=4, evaluate=False)
         print(f"Finished getting results, adding to results...")
         
         for id, results in results_dict.items():
