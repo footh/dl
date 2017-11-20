@@ -234,6 +234,8 @@ def _get_model(mtype, output=1, multi_gpu=False):
     else:
         ps_model = VGG16Model(output=output, multi_gpu=multi_gpu)
         
+    return ps_model
+        
 def key_zone_to_zones(key_zone):
     zones = [key_zone]
     if key_zone == 1: zones += [2]
