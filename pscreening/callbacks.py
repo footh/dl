@@ -42,6 +42,7 @@
 # SOFTWARE.
 
 import tensorflow as tf
+import numpy as np
 
 class ModelCheckpoint(tf.keras.callbacks.Callback):
   """Save the model after every epoch.

@@ -281,7 +281,7 @@ def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
 
     if starting_weights_file is not None:
         swf_path = os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, starting_weights_file)
-        ps_model.model.load_weights(swf_path)    
+        ps_model.model.load_weights(swf_path)
 
     #TODO: create the model with None as the time dimension? When looking at the code it looked like TimeDistributed
     #acts differently when None is passed as opposed to a fixed dimension. 
