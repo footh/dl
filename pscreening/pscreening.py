@@ -280,7 +280,7 @@ def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
     train_model = None
     if starting_model_file is not None:
         # https://github.com/fchollet/keras/issues/6865 (why I must compile saved model
-        smf_path = os.path.join(config.PSCREENING_HOME, config.MODELS_DIR, starting_model_file)
+        smf_path = os.path.join(config.PSCREENING_HOME, config.MODEL_DIR, starting_model_file)
         train_model = tf.keras.models.load_model(smf_path)
         _, _, mtype, _, _ = _model_params(starting_model_file)
     else:
