@@ -304,7 +304,7 @@ def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
     model_file = model_version + '.h5'
     model_file = os.path.join(config.PSCREENING_HOME, config.MODEL_DIR, model_file)
     
-    cb_model_save = callbacks.ModelCheckpoint(weights_file, multi_gpu=(gpus is not None))
+    cb_model_save = callbacks.ModelCheckpoint(model_file, multi_gpu=(gpus is not None))
     
     weight1 = round(0.9 ** len(zones), 2)
     train_model.fit_generator(train_batches,
