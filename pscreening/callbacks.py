@@ -137,9 +137,9 @@ class ModelCheckpoint(tf.keras.callbacks.Callback):
                                              current, filepath))
             self.best = current
             if self.save_weights_only:
-              _get_trained_model().save_weights(filepath, overwrite=True)
+              self._get_trained_model().save_weights(filepath, overwrite=True)
             else:
-              _get_trained_model().save(filepath, overwrite=True)
+              self._get_trained_model().save(filepath, overwrite=True)
           else:
             if self.verbose > 0:
               print('Epoch %05d: %s did not improve' % (epoch + 1,
@@ -148,7 +148,7 @@ class ModelCheckpoint(tf.keras.callbacks.Callback):
         if self.verbose > 0:
           print('Epoch %05d: saving model to %s' % (epoch + 1, filepath))
         if self.save_weights_only:
-          _get_trained_model().save_weights(filepath, overwrite=True)
+          self._get_trained_model().save_weights(filepath, overwrite=True)
         else:
-          _get_trained_model().save(filepath, overwrite=True)
+          self._get_trained_model().save(filepath, overwrite=True)
     
