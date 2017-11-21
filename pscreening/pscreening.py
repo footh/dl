@@ -247,8 +247,8 @@ def key_zone_to_zones(key_zone):
     if key_zone == 12: zones += [14,16]
     return zones
 
-def _model_params(weights_file):
-    params = sd.get_file_name(weights_file).split('-')
+def _model_params(model_file):
+    params = sd.get_file_name(model_file).split('-')
     
     key_zone = int(params[0].replace('zone', ''))
     zones = key_zone_to_zones(key_zone)
@@ -259,7 +259,7 @@ def _model_params(weights_file):
     return key_zone, zones, mtype, img_dim, channels
              
 def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
-          version=None, gpus=None, mtype='vgg16', starting_weights_file=None,
+          version=None, gpus=None, mtype='vgg16', starting_model_file=None,
           img_dim=200, channels=1):
     if not isinstance(zones, list): zones = [zones]
     
@@ -277,32 +277,34 @@ def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
     print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
     
     #----------------------------------
-    ps_model = _get_model(mtype, output=len(zones), multi_gpu=(gpus is not None))
-
-    if starting_weights_file is not None:
-        swf_path = os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, starting_weights_file)
-        ps_model.model.load_weights(swf_path)
-
-    #TODO: create the model with None as the time dimension? When looking at the code it looked like TimeDistributed
-    #acts differently when None is passed as opposed to a fixed dimension. 
-    ps_model.create(input_shape=train_batches.data_shape)
+    train_model = None
+    if starting_model_file is not None:
+        # https://github.com/fchollet/keras/issues/6865 (why I must compile saved model
+        smf_path = os.path.join(config.PSCREENING_HOME, config.MODELS_DIR, starting_model_file)
+        train_model = tf.keras.models.load_model(smf_path)
+        _, _, mtype, _, _ = _model_params(starting_model_file)
+    else:
+        ps_model = _get_model(mtype, output=len(zones), multi_gpu=(gpus is not None))
+        #TODO: create the model with None as the time dimension? When looking at the code it looked like TimeDistributed
+        #acts differently when None is passed as opposed to a fixed dimension. 
+        ps_model.create(input_shape=train_batches.data_shape)
+        train_model = ps_model.model
     
-    train_model = ps_model.model
     if gpus is not None:
-        train_model = tf_util.multi_gpu_model(ps_model.model, gpus)
+        train_model = tf_util.multi_gpu_model(train_model, gpus)
     
     train_model.compile(optimizer=tf.keras.optimizers.Adam(lr=learning_rate), loss='binary_crossentropy', metrics=['accuracy']) 
 
-    weights_version = f"zone{zones[0]}-{ps_model.name}-d{img_dim}-c{channels}-e{epochs}-bs{batch_size}-lr{str(learning_rate).split('.')[1]}"
-    weights_version += f"-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}" 
+    model_version = f"zone{zones[0]}-{mtype}-d{img_dim}-c{channels}-e{epochs}-bs{batch_size}-lr{str(learning_rate).split('.')[1]}"
+    model_version += f"-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}" 
     if version is not None:
-        weights_version += f"-{version}"
-    weights_version += "-{epoch:02d}-{val_loss:.2f}"
+        model_version += f"-{version}"
+    model_version += "-{epoch:02d}-{val_loss:.3f}"
     
-    weights_file = weights_version + '.h5'
-    weights_file = os.path.join(config.PSCREENING_HOME, config.MODEL_DIR, weights_file)
+    model_file = model_version + '.h5'
+    model_file = os.path.join(config.PSCREENING_HOME, config.MODEL_DIR, model_file)
     
-    model_saver = callbacks.ModelCheckpoint(weights_file, multi_gpu=(gpus is not None))
+    cb_model_save = callbacks.ModelCheckpoint(weights_file, multi_gpu=(gpus is not None))
     
     weight1 = round(0.9 ** len(zones), 2)
     train_model.fit_generator(train_batches,
@@ -310,16 +312,10 @@ def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
                               epochs=epochs,
                               validation_data=val_batches, 
                               validation_steps=validation_steps,
-                              callbacks=[model_saver],
+                              callbacks=[cb_model_save],
                               class_weight={0:1-weight1, 1:weight1})
-     
-    
-    #if gpus is not None:
-    #    train_model = [l for l in train_model.layers if l.__class__.__name__ == 'Model'][0]
-    
-    #train_model.save_weights(os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, weights_file))
-     
-    return weights_file
+         
+    return model_file
 
 def test(weights_file, src='test', batch_size=10, evaluate=True):
     if weights_file is None:
@@ -358,7 +354,7 @@ def test(weights_file, src='test', batch_size=10, evaluate=True):
 
     return results
 
-def testm(model_file, src='test', batch_size=10, evaluate=True):
+def testm(model_file, src='test', batch_size=8, evaluate=True):
     if model_file is None:
         print(f"Need model file to test.")
         return
