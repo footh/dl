@@ -300,7 +300,7 @@ def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
     weights_version += "-{epoch:02d}-{val_loss:.2f}"
     
     weights_file = weights_version + '.h5'
-    os.path.join(config.PSCREENING_HOME, config.MODEL_DIR, weights_file)
+    weights_file = os.path.join(config.PSCREENING_HOME, config.MODEL_DIR, weights_file)
     
     model_saver = callbacks.ModelCheckpoint(weights_file, multi_gpu=(gpus is not None))
     
