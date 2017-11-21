@@ -321,7 +321,7 @@ def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
      
     return weights_file
 
-def test(weights_file, src='test', batch_size=10, evaluate=True, gpus=None):
+def test(weights_file, src='test', batch_size=10, evaluate=True):
     if weights_file is None:
         print(f"Need weights file to test.")
         return
@@ -358,7 +358,7 @@ def test(weights_file, src='test', batch_size=10, evaluate=True, gpus=None):
 
     return results
 
-def testm(model_file, src='test', batch_size=10, evaluate=True, gpus=None):
+def testm(model_file, src='test', batch_size=10, evaluate=True):
     if model_file is None:
         print(f"Need model file to test.")
         return
@@ -377,6 +377,7 @@ def testm(model_file, src='test', batch_size=10, evaluate=True, gpus=None):
     if src == 'submission': model_dir = 'submission-' + model_dir
     model_file_path = os.path.join(config.PSCREENING_HOME, model_dir, model_file)
     ps_model = tf.keras.models.load_model(model_file_path)
+    ps_model.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001), loss='binary_crossentropy', metrics=['accuracy'])
     
     results = None
     if evaluate:
@@ -388,7 +389,6 @@ def testm(model_file, src='test', batch_size=10, evaluate=True, gpus=None):
         results = dict(zip(ids, results))
 
     return results
-
 
 def create_submission_file():
     import csv
