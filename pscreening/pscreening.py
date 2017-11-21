@@ -6,11 +6,13 @@ import config
 import setup_data as sd
 import zone_generator
 import zone_aps_generator
+import callbacks
 import math
 import datetime
 import os
 import tf_util
 from collections import defaultdict
+
 
 class PScreeningModel():
     def __init__(self, output=1, multi_gpu=False):
@@ -61,9 +63,10 @@ class PScreeningModel():
         # Run the frames through an LSTM
         lstm_output = tf.keras.layers.LSTM(256)(td_frame_sequence)
         # Add a dense layer similar to vgg16 (TODO: may not need this?)
-        x = tf.keras.layers.Dense(4096, activation='relu')(lstm_output)
+        x = tf.keras.layers.Dense(4096)(lstm_output)
+        #x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.Activation('relu')(x)
         x = tf.keras.layers.Dropout(0.5)(x)
-        #x = BatchNormalization()(x)
         predictions = tf.keras.layers.Dense(self.output, activation = 'sigmoid')(x)
         
         return tf.keras.models.Model(inputs=frame_input, outputs=predictions)
@@ -273,41 +276,48 @@ def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
     print(f"validation sample size: {val_batches.samples}")
     print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
     
+    #----------------------------------
     ps_model = _get_model(mtype, output=len(zones), multi_gpu=(gpus is not None))
+
+    if starting_weights_file is not None:
+        swf_path = os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, starting_weights_file)
+        ps_model.model.load_weights(swf_path)    
 
     #TODO: create the model with None as the time dimension? When looking at the code it looked like TimeDistributed
     #acts differently when None is passed as opposed to a fixed dimension. 
     ps_model.create(input_shape=train_batches.data_shape)
     
-    if starting_weights_file is not None:
-        swf_path = os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, starting_weights_file)
-        ps_model.model.load_weights(swf_path)
-    
     train_model = ps_model.model
     if gpus is not None:
         train_model = tf_util.multi_gpu_model(ps_model.model, gpus)
-     
-    weight1 = round(0.9 ** len(zones), 2)
     
     train_model.compile(optimizer=tf.keras.optimizers.Adam(lr=learning_rate), loss='binary_crossentropy', metrics=['accuracy']) 
+
+    weights_version = f"zone{zones[0]}-{ps_model.name}-d{img_dim}-c{channels}-e{epochs}-bs{batch_size}-lr{str(learning_rate).split('.')[1]}"
+    weights_version += f"-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}" 
+    if version is not None:
+        weights_version += f"-{version}"
+    weights_version += "-{epoch:02d}-{val_loss:.2f}"
+    
+    weights_file = weights_version + '.h5'
+    os.path.join(config.PSCREENING_HOME, config.MODEL_DIR, weights_file)
+    
+    model_saver = callbacks.ModelCheckpoint(weights_file, multi_gpu=(gpus is not None))
+    
+    weight1 = round(0.9 ** len(zones), 2)
     train_model.fit_generator(train_batches,
                               steps_per_epoch=steps_per_epoch,
                               epochs=epochs,
                               validation_data=val_batches, 
                               validation_steps=validation_steps,
+                              callbacks=[model_saver],
                               class_weight={0:1-weight1, 1:weight1})
      
-    weights_version = f"zone{zones[0]}-{ps_model.name}-d{img_dim}-c{channels}-e{epochs}-bs{batch_size}-lr{str(learning_rate).split('.')[1]}"
-    weights_version += f"-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}" 
-    if version is not None:
-        weights_version += f"-{version}"
-         
-    weights_file = weights_version + '.h5'
     
-    if gpus is not None:
-        train_model = [l for l in train_model.layers if l.__class__.__name__ == 'Model'][0]
+    #if gpus is not None:
+    #    train_model = [l for l in train_model.layers if l.__class__.__name__ == 'Model'][0]
     
-    train_model.save_weights(os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, weights_file))
+    #train_model.save_weights(os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR, weights_file))
      
     return weights_file
 
@@ -347,6 +357,38 @@ def test(weights_file, src='test', batch_size=10, evaluate=True, gpus=None):
         results = dict(zip(ids, results))
 
     return results
+
+def testm(model_file, src='test', batch_size=10, evaluate=True, gpus=None):
+    if model_file is None:
+        print(f"Need model file to test.")
+        return
+    
+    _, zones, _, img_dim, channels = _model_params(model_file)
+    
+    data_shape = sd.zones_max_dict(round_up=True)[zones[0]]
+    data_shape = (data_shape[0],) + (img_dim, img_dim)
+
+    test_batches = get_batches_aps(src, zones, data_shape, channels=channels, batch_size=batch_size, shuffle=False, labels=evaluate)
+    test_steps = math.ceil(test_batches.samples / test_batches.batch_size)
+    print(f"test sample size: {test_batches.samples}")
+    print(f"test batch size: {test_batches.batch_size}, steps: {test_steps}")
+
+    model_dir = config.MODEL_DIR
+    if src == 'submission': model_dir = 'submission-' + model_dir
+    model_file_path = os.path.join(config.PSCREENING_HOME, model_dir, model_file)
+    ps_model = tf.keras.models.load_model(model_file_path)
+    
+    results = None
+    if evaluate:
+        results = ps_model.evaluate_generator(test_batches, test_steps)
+    else:
+        results = ps_model.predict_generator(test_batches, test_steps)
+        # The 'filenames' argument is expected to be the order of the results since shuffle is set to False
+        ids = [sd.get_file_name(fname) for fname in test_batches.filenames]
+        results = dict(zip(ids, results))
+
+    return results
+
 
 def create_submission_file():
     import csv
