@@ -429,7 +429,7 @@ def create_submission_file():
 def convert_weights_to_model(file):
     weights_file = os.path.join(config.PSCREENING_HOME, 'submission-weights', file)
     
-    ps_model = VGG16Model(output=output, multi_gpu=False)
+    ps_model = VGG16Model(output=3, multi_gpu=False)
     ps_model.create(input_shape=(11,200,200,1))
     
     ps_model.model.compile(optimizer=tf.keras.optimizers.Adam(lr=learning_rate), loss='binary_crossentropy', metrics=['accuracy'])
