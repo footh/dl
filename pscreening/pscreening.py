@@ -389,26 +389,24 @@ def testm(model_file, src='test', batch_size=8, evaluate=True):
 def create_submission_file():
     import csv
     
-    base_dir = os.path.join(config.PSCREENING_HOME, 'submission-' + config.WEIGHTS_DIR)
-    weight_files = os.listdir(base_dir)
+    base_dir = os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR)
     
-    # zone_weight_dict is a dict of key_zone: [list of weights files]
-    zone_weight_dict = defaultdict(list)
-    for file in weight_files:
-        if os.path.isfile(os.path.join(base_dir, file)):
-            key_zone, _, _, _, _ = _model_params(file)
-            zone_weight_dict[key_zone].append(file)
+    # zone_model_dict is a dict of key_zone: [list of model files]
+    zone_model_dict = defaultdict(list)
+    for model_file in config.SUBMISSION_MODELS:
+        key_zone, _, _, _, _ = _model_params(model_file)
+        zone_model_dict[key_zone].append(model_file)
 
     submission_results = []
-    for key_zone, weights_files in sorted(zone_weight_dict.items()):
+    for key_zone, model_files in sorted(zone_model_dict.items()):
         
         # TODO: Just using the first weight file. Ensembling TBD.
-        weights_file = weights_files[0]
-        _, zones, _, _, _ = _model_params(weights_file)
+        model_file = model_files[0]
+        _, zones, _, _, _ = _model_params(model_file)
 
-        print(f"Getting results for key_zone {key_zone} using weights_file: {weights_file}...")
+        print(f"Getting results for key_zone {key_zone} using model_file: {model_file}...")
         # Clear session after each run? tf.keras.backend.clear_session()
-        results_dict = test(weights_file, src='submission', batch_size=4, evaluate=False)
+        results_dict = test(model_file, src='submission', batch_size=4, evaluate=False)
         print(f"Finished getting results, adding to results...")
         
         for id, results in results_dict.items():
@@ -417,7 +415,9 @@ def create_submission_file():
                 
     print(f"Writing to file...")
     submission_results.sort()
+    
     submission_file_name = f"submission-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
+    submission_file_name = os.path.join(config.PSCREENING_HOME, config.SUBMISSION_DIR, submission_file_name)
     with open(submission_file_name, 'w') as submission_file:
         wr = csv.writer(submission_file, delimiter=',')
         wr.writerow(['Id', 'Probability'])
@@ -425,3 +425,15 @@ def create_submission_file():
         for submission_result in submission_results:
             id_zone = submission_result[0] + '_Zone' + str(submission_result[1])
             wr.writerow([id_zone, submission_result[2]])
+
+def convert_weights_to_model(file):
+    weights_file = os.path.join(config.PSCREENING_HOME, 'submission-weights', file)
+    
+    ps_model = VGG16Model(output=output, multi_gpu=False)
+    ps_model.create(input_shape=(11,200,200,1))
+    
+    ps_model.model.compile(optimizer=tf.keras.optimizers.Adam(lr=learning_rate), loss='binary_crossentropy', metrics=['accuracy'])
+    ps_model.model.load_weights(weights_file)
+    
+    ps_model.model.save('zone11-vgg16-d200-c1-e10-bs32-lr001-TEST.h5')
+    
