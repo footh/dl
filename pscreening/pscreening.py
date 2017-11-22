@@ -389,8 +389,6 @@ def testm(model_file, src='test', batch_size=8, evaluate=True):
 def create_submission_file():
     import csv
     
-    base_dir = os.path.join(config.PSCREENING_HOME, config.WEIGHTS_DIR)
-    
     # zone_model_dict is a dict of key_zone: [list of model files]
     zone_model_dict = defaultdict(list)
     for model_file in config.SUBMISSION_MODELS:
@@ -406,7 +404,7 @@ def create_submission_file():
 
         print(f"Getting results for key_zone {key_zone} using model_file: {model_file}...")
         # Clear session after each run? tf.keras.backend.clear_session()
-        results_dict = test(model_file, src='submission', batch_size=4, evaluate=False)
+        results_dict = testm(model_file, src='submission', batch_size=4, evaluate=False)
         print(f"Finished getting results, adding to results...")
         
         for id, results in results_dict.items():
