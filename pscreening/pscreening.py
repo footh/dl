@@ -369,9 +369,7 @@ def testm(model_file, src='test', batch_size=8, evaluate=True):
     print(f"test sample size: {test_batches.samples}")
     print(f"test batch size: {test_batches.batch_size}, steps: {test_steps}")
 
-    model_dir = config.MODEL_DIR
-    if src == 'submission': model_dir = 'submission-' + model_dir
-    model_file_path = os.path.join(config.PSCREENING_HOME, model_dir, model_file)
+    model_file_path = os.path.join(config.PSCREENING_HOME, config.MODEL_DIR, model_file)
     ps_model = tf.keras.models.load_model(model_file_path)
     ps_model.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001), loss='binary_crossentropy', metrics=['accuracy'])
     
