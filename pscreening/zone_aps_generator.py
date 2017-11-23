@@ -280,8 +280,7 @@ class ZoneApsFileIterator(Iterator):
             if self.channels == 1:
                 extraction = extraction.reshape(self.data_shape[1:])
             else:
-                # TODO: duplicate the data value 'channels' times 
-                extraction = extraction.reshape(self.data_shape[1:])
+                extraction = np.stack((extraction,)*self.channels, axis=-1)
             
             slice_data[j] = extraction
 
