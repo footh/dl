@@ -2,6 +2,7 @@ import pscreening
 import glob
 import tensorflow as tf
 import os
+import config
 
 def train(zones, epochs=10, batch_size=32, learning_rate=0.001,
           version=None, gpus=4, mtype='vgg16', starting_model_file=None,
