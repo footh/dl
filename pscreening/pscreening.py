@@ -422,10 +422,10 @@ def create_submission_file():
             id_zone = submission_result[0] + '_Zone' + str(submission_result[1])
             wr.writerow([id_zone, submission_result[2]])
 
-def convert_weights_to_model(file, sn, slices):
+def convert_weights_to_model(file, sn, slices, output):
     weights_file = os.path.join(config.PSCREENING_HOME, 'submission-weights', file)
     
-    ps_model = VGG16Model(output=3, multi_gpu=False)
+    ps_model = VGG16Model(output=output, multi_gpu=False)
     ps_model.create(input_shape=(slices,200,200,1))
     
     ps_model.model.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001), loss='binary_crossentropy', metrics=['accuracy'])
