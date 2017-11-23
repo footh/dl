@@ -422,7 +422,7 @@ def create_submission_file():
             id_zone = submission_result[0] + '_Zone' + str(submission_result[1])
             wr.writerow([id_zone, submission_result[2]])
 
-def convert_weights_to_model(file):
+def convert_weights_to_model(file, sn):
     weights_file = os.path.join(config.PSCREENING_HOME, 'submission-weights', file)
     
     ps_model = VGG16Model(output=3, multi_gpu=False)
@@ -431,5 +431,5 @@ def convert_weights_to_model(file):
     ps_model.model.compile(optimizer=tf.keras.optimizers.Adam(lr=learning_rate), loss='binary_crossentropy', metrics=['accuracy'])
     ps_model.model.load_weights(weights_file)
     
-    ps_model.model.save('zone11-vgg16-d200-c1-e10-bs32-lr001-TEST.h5')
+    ps_model.model.save(os.path.join(config.PSCREENING_HOME, config.MODEL_DIR, f"{sn}-SUBWGHTS.h5"))
     
