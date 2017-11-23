@@ -354,7 +354,7 @@ def test(weights_file, src='test', batch_size=7, evaluate=True):
 
     return results
 
-def testm(model_file, src='test', batch_size=8, evaluate=True):
+def testm(model_file, src='test', batch_size=7, evaluate=True):
     if model_file is None:
         print(f"Need model file to test.")
         return

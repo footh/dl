@@ -17,9 +17,10 @@ def train(zones, epochs=10, batch_size=32, learning_rate=0.001,
     
     model_files = glob.glob(os.path.join(config.PSCREENING_HOME, config.MODEL_DIR, f"{file_prefix}*.h5"))
     
-    tf.keras.backend.clear_session()
     results_dict = {}
     for model_file in model_files:
+        tf.keras.backend.clear_session()
+
         model_file = os.path.basename(model_file)
         val_loss = float(sd.get_file_name(model_file).split('-')[-1])
         results = pscreening.testm(model_file)
