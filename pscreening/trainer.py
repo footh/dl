@@ -1,6 +1,7 @@
 import pscreening
 import glob
 import tensorflow as tf
+import os
 
 def train(zones, epochs=10, batch_size=32, learning_rate=0.001,
           version=None, gpus=4, mtype='vgg16', starting_model_file=None,
@@ -12,11 +13,12 @@ def train(zones, epochs=10, batch_size=32, learning_rate=0.001,
     
     print(f"Training completed. File prefix: {file_prefix}. Running tests...")
     
-    model_files = glob.glob(f"{file_prefix}*.h5")
+    model_files = glob.glob(os.path.join(config.PSCREENING_HOME, config.MODEL_DIR, f"{file_prefix}*.h5"))
     
     tf.keras.backend.clear_session()
     results_dict = {}
     for model_file in model_files:
+        model_file = os.path.basename(model_file)
         results = pscreening.testm(model_file)
         results_dict[model_file] = results
         
