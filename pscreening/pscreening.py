@@ -299,9 +299,9 @@ def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
     model_version += f"-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}" 
     if version is not None:
         model_version += f"-{version}"
-    model_version += "-{epoch:02d}-{val_loss:.3f}"
+    model_version_el = model_version + "-{epoch:02d}-{val_loss:.3f}"
     
-    model_file = model_version + '.h5'
+    model_file = model_version_el + '.h5'
     model_file = os.path.join(config.PSCREENING_HOME, config.MODEL_DIR, model_file)
     
     cb_model_save = callbacks.ModelCheckpoint(model_file, multi_gpu=(gpus is not None))
@@ -315,9 +315,9 @@ def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
                               callbacks=[cb_model_save],
                               class_weight={0:1-weight1, 1:weight1})
          
-    return model_file
+    return model_version
 
-def test(weights_file, src='test', batch_size=10, evaluate=True):
+def test(weights_file, src='test', batch_size=7, evaluate=True):
     if weights_file is None:
         print(f"Need weights file to test.")
         return
