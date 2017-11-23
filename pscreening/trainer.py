@@ -3,6 +3,7 @@ import glob
 import tensorflow as tf
 import os
 import config
+import setup_data as sd
 
 def train(zones, epochs=10, batch_size=32, learning_rate=0.001,
           version=None, gpus=4, mtype='vgg16', starting_model_file=None,
@@ -20,8 +21,9 @@ def train(zones, epochs=10, batch_size=32, learning_rate=0.001,
     results_dict = {}
     for model_file in model_files:
         model_file = os.path.basename(model_file)
+        val_loss = float(sd.get_file_name(model_file).split('-')[-1])
         results = pscreening.testm(model_file)
-        results_dict[model_file] = results
+        results_dict[model_file] = [val_loss] + results
         
     print(f"Testing completed. Printing results...")
     
