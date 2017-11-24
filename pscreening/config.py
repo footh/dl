@@ -14,6 +14,7 @@ SUBMISSION_MODELS = [
     'zone1-vgg16-d200-c1-e6-bs32-lr001-SUBWGHTS.h5',
     'zone3-vgg16-d200-c1-e10-bs32-lr001-SUBWGHTS.h5',
     'zone6-vgg16-d200-c1-e6-bs32-lr001-20171121-161816-04-0.125.h5',
+    'zone6-inception-d200-c1-e10-bs40-lr001-20171124-030746-09-0.198.h5',
     'zone7-vgg16-d200-c1-e6-bs32-lr001-20171121-164023-06-0.264.h5',
     'zone8-vgg16-d200-c1-e6-bs32-lr001-20171121-172658-06-0.142.h5',
     'zone9-vgg16-d200-c1-e6-bs32-lr001-20171121-225605-06-0.176.h5',

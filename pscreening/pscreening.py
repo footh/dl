@@ -392,7 +392,7 @@ def _ensemble(results_dict_list):
     
     results_dict_sample = results_dict_list[0]
     keys = np.asarray(list(results_dict_sample.keys()))
-    values = np.zeros(np.asarray(list(results_dict_sample.values())).shape)
+    values = np.zeros(np.asarray(list(results_dict_sample.values())).shape, dtype=np.float32)
     
     for results_dict in results_dict_list:
         values += np.asarray(list(results_dict.values()))
