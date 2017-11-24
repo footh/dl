@@ -384,6 +384,23 @@ def testm(model_file, src='test', batch_size=7, evaluate=True):
 
     return results
 
+def _ensemble(results_dict_list):
+    """
+        Just taking the average...
+    """
+    ttl = len(results_dict_list)
+    
+    results_dict_sample = results_dict_list[0]
+    keys = np.asarray(list(results_dict_sample.keys()))
+    values = np.zeros(np.asarray(list(results_dict_sample.values())).shape)
+    
+    for results_dict in results_dict_list:
+        values += np.asarray(list(results_dict.values()))
+        
+    values = values / ttl
+    
+    return dict(zip(keys, values))
+
 def create_submission_file():
     import csv
     
@@ -396,14 +413,17 @@ def create_submission_file():
     submission_results = []
     for key_zone, model_files in sorted(zone_model_dict.items()):
         
-        # TODO: Just using the first weight file. Ensembling TBD.
-        model_file = model_files[0]
-        _, zones, _, _, _ = _model_params(model_file)
+        results_dict_list = []
+        for model_file in model_files:
+            _, zones, _, _, _ = _model_params(model_file)            
 
-        print(f"Getting results for key_zone {key_zone} using model_file: {model_file}...")
-        # Clear session after each run? tf.keras.backend.clear_session()
-        results_dict = testm(model_file, src='submission', batch_size=4, evaluate=False)
-        print(f"Finished getting results, adding to results...")
+            print(f"Getting results for key_zone {key_zone} using model_file: {model_file}...")
+            # Clear session after each run? tf.keras.backend.clear_session()
+            results_dict = testm(model_file, src='submission', batch_size=4, evaluate=False)
+            print(f"Finished getting results...")
+            results_dict_list.append(results_dict)
+            
+        results_dict = _ensemble(results_dict_list)
         
         for id, results in results_dict.items():
             for i, zone in enumerate(zones):
