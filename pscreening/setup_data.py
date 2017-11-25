@@ -11,7 +11,7 @@ import config
 import zones as z
 import zones_config
 
-ZONE_EXTRACTIONS = [1,3,5,6,7,8,9,10,11,12,17]
+ZONE_EXTRACTIONS = [1,3,5,6,7,8,9,10,11,12,13,14,15,16,17]
 
 def get_file_name(file_name):
     return os.path.splitext(os.path.basename(file_name))[0]

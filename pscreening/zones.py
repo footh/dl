@@ -396,6 +396,12 @@ def extract_rects(tbr, tbc, tec, hbr, rows, slice_cursor=0, slice=0, x_rot_adj=0
     print(f"leg_portion: {leg_portion}") 
     torso_zones_end_row = tbr + WAIST_EXT_PORTION*leg_portion
     
+    # LEG_PORTIONS-WAIST_EXT_PORTION portions left to allot to legs (currently 5,5,3)
+    TOP_LEG_PORTION = 5
+    MID_LEG_PORTION = 5
+    mid_leg_start = torso_zones_end_row + TOP_LEG_PORTION*leg_portion
+    bottom_leg_start = mid_leg_start + MID_LEG_PORTION*leg_portion
+        
     TORSO_PORTIONS = 15
     UPPER_TORSO_PORTION = 4
     LOWER_TORSO_PORTION = 10
@@ -411,8 +417,11 @@ def extract_rects(tbr, tbc, tec, hbr, rows, slice_cursor=0, slice=0, x_rot_adj=0
         torso_rect = valid_rect(tbc_adj, hbr+20, tec_adj, waist_split_row) #TODO: better then +20
         waist_rect = valid_rect(tbc_adj, waist_split_row, tec_adj, torso_zones_end_row)
         arm_rect = valid_rect(tbc_adj, TOP_MARGIN, tec_adj, hbr+20)
-        leg_rect = valid_rect(tbc_adj, torso_zones_end_row, tec_adj, rows)
-        return torso_rect, waist_rect, arm_rect, leg_rect
+        
+        leg_top_rect = valid_rect(tbc_adj, torso_zones_end_row, tec_adj, mid_leg_start)
+        leg_mid_rect = valid_rect(tbc_adj, mid_leg_start, tec_adj, bottom_leg_start)
+        leg_bottom_rect = valid_rect(tbc_adj, bottom_leg_start, tec_adj, rows)
+        return torso_rect, waist_rect, arm_rect, leg_top_rect, leg_mid_rect, leg_bottom_rect
 
     lower_torso_split_column = (torso_width // 2 + tbc_adj) + slice_col_adj1                          
 
@@ -443,10 +452,15 @@ def extract_rects(tbr, tbc, tec, hbr, rows, slice_cursor=0, slice=0, x_rot_adj=0
     ARM_HEAD_MARGIN = 20
     left_arm_rect = valid_rect(tbc_adj, TOP_MARGIN, torso_midpoint-ARM_HEAD_MARGIN, hbr)
     right_arm_rect = valid_rect(torso_midpoint+ARM_HEAD_MARGIN, TOP_MARGIN, tec_adj, hbr)
-    left_leg_rect = valid_rect(tbc_adj, torso_zones_end_row, torso_midpoint, rows)
-    right_leg_rect = valid_rect(torso_midpoint, torso_zones_end_row, tec_adj, rows)
     
-    return upper_torso_rect, left_torso_rect, right_torso_rect, left_waist_rect, mid_waist_rect, right_waist_rect, left_arm_rect, right_arm_rect, left_leg_rect, right_leg_rect
+    left_top_leg_rect = valid_rect(tbc_adj, torso_zones_end_row, torso_midpoint, mid_leg_start)
+    right_top_leg_rect = valid_rect(torso_midpoint, torso_zones_end_row, tec_adj, mid_leg_start)
+    left_mid_leg_rect = valid_rect(tbc_adj, mid_leg_start, torso_midpoint, bottom_leg_start)
+    right_mid_leg_rect = valid_rect(torso_midpoint, mid_leg_start, tec_adj, bottom_leg_start)
+    left_bottom_leg_rect = valid_rect(tbc_adj, bottom_leg_start, torso_midpoint, rows)
+    right_bottom_leg_rect = valid_rect(torso_midpoint, bottom_leg_start, tec_adj, rows)
+   
+    return upper_torso_rect, left_torso_rect, right_torso_rect, left_waist_rect, mid_waist_rect, right_waist_rect, left_arm_rect, right_arm_rect, left_top_leg_rect, left_mid_leg_rect, left_bottom_leg_rect, right_top_leg_rect, right_mid_leg_rect, right_bottom_leg_rect
 
 def create_zones16(file_images):
     """
@@ -505,42 +519,43 @@ def create_zones16(file_images):
     #        0
     zones = np.zeros((16, 18, 4), dtype=np.int32)
         
-    zones[0][5], zones[0][6], zones[0][7], zones[0][8], zones[0][9], zones[0][10], zones[0][1], zones[0][3], zones[0][11], zones[0][12] = extract_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows)
+    zones[0][5], zones[0][6], zones[0][7], zones[0][8], zones[0][9], zones[0][10], zones[0][1], zones[0][3], zones[0][11], zones[0][13], zones[0][15], zones[0][12], zones[0][14], zones[0][16] = extract_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows)
 
-    zones[1][5], zones[1][6], zones[1][7], zones[1][8], zones[1][9], zones[1][10], zones[1][1], zones[1][3], zones[1][11], zones[1][12] = extract_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows, 
-                                                                                                                                                        slice_cursor=-1, slice=1, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj, z_depth=z_depth)
-    zones[2][5], zones[2][6], zones[2][7], zones[2][8], zones[2][9], zones[2][10], zones[2][1], zones[2][3], zones[2][11], zones[2][12] = extract_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows,
-                                                                                                                                                        slice_cursor=-2, slice=2, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj, z_depth=z_depth)
-    zones[3][7], zones[3][10], zones[3][3], zones[3][12] = extract_rects(c_tbr, c_tbc4, c_tec4, c_hbr, rows, 
-                                                                         slice_cursor=-1, slice=3, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
-    zones[4][7], zones[4][10], zones[4][3], zones[4][12] = extract_rects(c_tbr, c_tbc4, c_tec4, c_hbr, rows, slice=4)
-    zones[5][7], zones[5][10], zones[5][3], zones[5][12] = extract_rects(c_tbr, c_tbc4, c_tec4, c_hbr, rows,
-                                                                         slice_cursor=1, slice=5, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
+    zones[1][5], zones[1][6], zones[1][7], zones[1][8], zones[1][9], zones[1][10], zones[1][1], zones[1][3], zones[1][11], zones[1][13], zones[1][15], zones[1][12], zones[1][14], zones[1][16] = extract_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows, 
+                                                                                                                                                                                                                slice_cursor=-1, slice=1, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj, z_depth=z_depth)
+    zones[2][5], zones[2][6], zones[2][7], zones[2][8], zones[2][9], zones[2][10], zones[2][1], zones[2][3], zones[2][11], zones[2][13], zones[2][15], zones[2][12], zones[2][14], zones[2][16] = extract_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows,
+                                                                                                                                                                                                                slice_cursor=-2, slice=2, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj, z_depth=z_depth)
+    zones[3][7], zones[3][10], zones[3][3], zones[3][12], zones[3][14], zones[3][16] = extract_rects(c_tbr, c_tbc4, c_tec4, c_hbr, rows, 
+                                                                                                     slice_cursor=-1, slice=3, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
+    zones[4][7], zones[4][10], zones[4][3], zones[4][12], zones[4][14], zones[4][16] = extract_rects(c_tbr, c_tbc4, c_tec4, c_hbr, rows, slice=4)
+    zones[5][7], zones[5][10], zones[5][3], zones[5][12], zones[5][14], zones[5][16] = extract_rects(c_tbr, c_tbc4, c_tec4, c_hbr, rows,
+                                                                                                     slice_cursor=1, slice=5, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
     
-    zones[6][17], zones[6][7], zones[6][6], zones[6][10], zones[6][9], zones[6][8], zones[6][3], zones[6][1], zones[6][12], zones[6][11] = extract_rects(c_tbr, c_tbc8, c_tec8, c_hbr, rows,
-                                                                                                                                                         slice_cursor=2, slice=6, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj, z_depth=z_depth)
-    zones[7][17], zones[7][7], zones[7][6], zones[7][10], zones[7][9], zones[7][8], zones[7][3], zones[7][1], zones[7][12], zones[7][11] = extract_rects(c_tbr, c_tbc8, c_tec8, c_hbr, rows,
-                                                                                                                                                         slice_cursor=1, slice=7, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj, z_depth=z_depth)    
-    zones[8][17], zones[8][7], zones[8][6], zones[8][10], zones[8][9], zones[8][8], zones[8][3], zones[8][1], zones[8][12], zones[8][11] = extract_rects(c_tbr, c_tbc8, c_tec8, c_hbr, rows, slice=8)
+    zones[6][17], zones[6][7], zones[6][6], zones[6][10], zones[6][9], zones[6][8], zones[6][3], zones[6][1], zones[6][12], zones[6][14], zones[6][16], zones[6][11], zones[6][13], zones[6][15] = extract_rects(c_tbr, c_tbc8, c_tec8, c_hbr, rows,
+                                                                                                                                                                                                                 slice_cursor=2, slice=6, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj, z_depth=z_depth)
+    zones[7][17], zones[7][7], zones[7][6], zones[7][10], zones[7][9], zones[7][8], zones[7][3], zones[7][1], zones[7][12], zones[7][14], zones[7][16], zones[7][11], zones[7][13], zones[7][15]  = extract_rects(c_tbr, c_tbc8, c_tec8, c_hbr, rows,
+                                                                                                                                                                                                                  slice_cursor=1, slice=7, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj, z_depth=z_depth)    
+    zones[8][17], zones[8][7], zones[8][6], zones[8][10], zones[8][9], zones[8][8], zones[8][3], zones[8][1], zones[8][12], zones[8][14], zones[8][16], zones[8][11], zones[8][13], zones[8][15]  = extract_rects(c_tbr, c_tbc8, c_tec8, c_hbr, rows, slice=8)
 
-    zones[9][17], zones[9][7], zones[9][6], zones[9][10], zones[9][9], zones[9][8], zones[9][3], zones[9][1], zones[9][12], zones[9][11] = extract_rects(c_tbr, c_tbc8, c_tec8, c_hbr, rows,
-                                                                                                                                                         slice_cursor=-1, slice=9, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj, z_depth=z_depth)
-    zones[10][17], zones[10][7], zones[10][6], zones[10][10], zones[10][9], zones[10][8], zones[10][3], zones[10][1], zones[10][12], zones[10][11] = extract_rects(c_tbr, c_tbc8, c_tec8, c_hbr, rows, 
-                                                                                                                                                                   slice_cursor=-2, slice=10, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj, z_depth=z_depth)
-    zones[11][6], zones[11][8], zones[11][1], zones[11][11] = extract_rects(c_tbr, c_tbc12, c_tec12, c_hbr, rows,
-                                                                           slice_cursor=-1, slice=11, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
-    zones[12][6], zones[12][8], zones[12][1], zones[12][11] = extract_rects(c_tbr, c_tbc12, c_tec12, c_hbr, rows, slice=12)
-    zones[13][6], zones[13][8], zones[13][1], zones[13][11] = extract_rects(c_tbr, c_tbc12, c_tec12, c_hbr, rows,
-                                                                            slice_cursor=1, slice=13, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)                                             
+    zones[9][17], zones[9][7], zones[9][6], zones[9][10], zones[9][9], zones[9][8], zones[9][3], zones[9][1], zones[9][12], zones[9][14], zones[9][16], zones[9][11], zones[9][13], zones[9][15] = extract_rects(c_tbr, c_tbc8, c_tec8, c_hbr, rows,
+                                                                                                                                                                                                                 slice_cursor=-1, slice=9, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj, z_depth=z_depth)
+    zones[10][17], zones[10][7], zones[10][6], zones[10][10], zones[10][9], zones[10][8], zones[10][3], zones[10][1], zones[10][12], zones[10][14], zones[10][16], zones[10][11], zones[10][13], zones[10][15] = extract_rects(c_tbr, c_tbc8, c_tec8, c_hbr, rows, 
+                                                                                                                                                                                                                               slice_cursor=-2, slice=10, x_rot_adj=x_rot_adj, z_rot_adj=-z_rot_adj, z_depth=z_depth)
+    zones[11][6], zones[11][8], zones[11][1], zones[11][11], zones[11][13], zones[11][15] = extract_rects(c_tbr, c_tbc12, c_tec12, c_hbr, rows,
+                                                                                                          slice_cursor=-1, slice=11, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)
+    zones[12][6], zones[12][8], zones[12][1], zones[12][11], zones[12][13], zones[12][15] = extract_rects(c_tbr, c_tbc12, c_tec12, c_hbr, rows, slice=12)
+    zones[13][6], zones[13][8], zones[13][1], zones[13][11], zones[13][13], zones[13][15] = extract_rects(c_tbr, c_tbc12, c_tec12, c_hbr, rows,
+                                                                                                          slice_cursor=1, slice=13, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj)                                             
     
-    zones[14][5], zones[14][6], zones[14][7], zones[14][8], zones[14][9], zones[14][10], zones[14][1], zones[14][3], zones[14][11], zones[14][12] = extract_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows,
-                                                                                                                                                                  slice_cursor=2, slice=14, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj, z_depth=z_depth)
-    zones[15][5], zones[15][6], zones[15][7], zones[15][8], zones[15][9], zones[15][10], zones[15][1], zones[15][3], zones[15][11], zones[15][12] = extract_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows,
-                                                                                                        slice_cursor=1, slice=15, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj, z_depth=z_depth)
+    zones[14][5], zones[14][6], zones[14][7], zones[14][8], zones[14][9], zones[14][10], zones[14][1], zones[14][3], zones[14][11], zones[14][13], zones[14][15], zones[14][12], zones[14][14], zones[14][16] = extract_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows,
+                                                                                                                                                                                                                             slice_cursor=2, slice=14, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj, z_depth=z_depth)
+    zones[15][5], zones[15][6], zones[15][7], zones[15][8], zones[15][9], zones[15][10], zones[15][1], zones[15][3], zones[15][11], zones[15][13], zones[15][15], zones[15][12], zones[15][14], zones[15][16] = extract_rects(c_tbr, c_tbc0, c_tec0, c_hbr, rows,
+                                                                                                                                                                                                                              slice_cursor=1, slice=15, x_rot_adj=x_rot_adj, z_rot_adj=z_rot_adj, z_depth=z_depth)
     
     # Zeroing out these fringe slice zones to shrink model input. 
     zones[2][6] = zones[2][8] = zones[6][6] = zones[6][8] = zones[10][7] = zones[10][10] = zones[14][7] = zones[14][10] = [0,0,0,0]
-    zones[3][12] = zones[5][12] = zones[11][11] = zones[13][11] = [0,0,0,0]
+    zones[11][11] = zones[11][13] = zones[11][15] = zones[13][11] = zones[13][13] = zones[13][15] = [0,0,0,0]
+    zones[3][12] = zones[3][14] = zones[3][16] = zones[5][12] = zones[5][14] = zones[5][16] = [0,0,0,0]
     zones[2][1] = zones[6][1] = zones[10][3] = zones[14][3] = [0,0,0,0]    
     
     return zones
