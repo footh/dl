@@ -243,8 +243,8 @@ def key_zone_to_zones(key_zone):
     zones = [key_zone]
     if key_zone == 1: zones += [2]
     if key_zone == 3: zones += [4]
-    if key_zone == 11: zones += [13,15]
-    if key_zone == 12: zones += [14,16]
+    #if key_zone == 11: zones += [13,15]
+    #if key_zone == 12: zones += [14,16]
     return zones
 
 def _model_params(model_file):
