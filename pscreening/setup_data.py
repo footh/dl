@@ -93,7 +93,7 @@ def __remove_files(src):
         # map lazy evaluates so must wrap in list to force evaluation
         list(map(__remove_files, [os.path.join(src, fi) for fi in os.listdir(src)]))
         
-def __copy_files(files, src_dir, dest_dir, ext='aps'):
+def __copy_files(files, src_dir, dest_dir, ext='a3daps'):
     for f in files:
         shutil.copy2(os.path.join(src_dir, f + '.' + ext), dest_dir)
 
