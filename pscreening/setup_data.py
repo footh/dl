@@ -122,7 +122,7 @@ def setup_data(num_valid=None, num_test=None, ext='a3daps'):
     total_files = len(src_files)
     print('Found %s files' % total_files)
     
-    label_keys = list(_LABEL_DICT_.keys())
+    label_keys = list(label_dict().keys())
     labeled_count = len(label_keys)
     print('Found %s labeled files' % labeled_count)
     
