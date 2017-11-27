@@ -114,7 +114,7 @@ def convert_data(data):
         
     return file_data
 
-def read_data(infile, as_images=False):
+def read_data(infile, as_images=False, reduce=4):
     """Read any of the 4 types of image files, returns a numpy array of the image contents
     """
     extension = os.path.splitext(infile)[1]
@@ -131,6 +131,8 @@ def read_data(infile, as_images=False):
             data = np.fromfile(fid, dtype = np.uint16, count = nx * ny * nt)
         data = data * h['data_scale_factor'] #scaling factor
         data = data.reshape(nx, ny, nt, order='F').copy() #make N-d image
+        if extension == '.a3daps' and reduce:
+            data = data[:,:,::reduce] # taking every reduce image to reduce dims
     elif extension == '.a3d':
         if(h['word_type']==7): #float32
             data = np.fromfile(fid, dtype = np.float32, count = nx * ny * nt)
@@ -197,6 +199,8 @@ def draw_zones(file=None, slices=range(16), src_dir='train', save_file='zone_tes
         file = setup_data.shuffled_files(src_dir)[0]
         print(file)
 
+    print(f"threat zones: {setup_data.get_zones(setup_data.get_file_name(file))}")
+    
     file_images = read_data(file, as_images=True)
 
     zones = z.create_zones16(file_images)

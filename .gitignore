@@ -2,6 +2,7 @@
 *.csv
 galaxy/images_training_rev1
 pscreening/raw-data
+pscreening/raw-data-aps
 pscreening/submission
 pscreening/train
 pscreening/valid

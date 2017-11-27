@@ -39,12 +39,11 @@ def label_dict(label_file='stage1_labels.csv'):
             
             cur_id = id
             
-        return label_dict
-    
-_LABEL_DICT_ = label_dict()
+        return label_dict    
 
 def get_zones(id):
-    return np.where(_LABEL_DICT_[id])[0] + 1
+    d = label_dict()
+    return np.where(d[id])[0] + 1
 
 def shuffled_files(src):
     """
@@ -98,7 +97,7 @@ def __copy_files(files, src_dir, dest_dir, ext='aps'):
     for f in files:
         shutil.copy2(os.path.join(src_dir, f + '.' + ext), dest_dir)
 
-def setup_data(num_valid=None, num_test=None, ext='aps'):
+def setup_data(num_valid=None, num_test=None, ext='a3daps'):
     """
         Moves the unlabeled files to submission dir, and the rest to train, valid and test directories
         Usage: setup_data('data','stage1_labels.csv', num_valid=100, num_test=100)
@@ -331,3 +330,15 @@ def generate_points_files(dirs=['train', 'valid', 'test', 'submission']):
             writer = csv.writer(csvfile, delimiter=',')
             for row in points:
                 writer.writerow(row)
+                
+def zone_info(zones=17):
+    d = label_dict()
+    ttl = len(d)
+    
+    labels = []
+    label_probs = []
+    for i in range(zones):
+        labels.append([label for label,vals in d.items() if vals[i]])
+        label_probs.append(len(labels[i]) / ttl)
+        
+    return labels, label_probs

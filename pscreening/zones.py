@@ -373,7 +373,7 @@ def extract_rects(tbr, tbc, tec, hbr, rows, slice_cursor=0, slice=0, x_rot_adj=0
     
     # Upper torso column movement is a linear adjustment
     # TODO: this may need a gaussian too?
-    UPPER_TORSO_SLICE_ADJ = 0.1
+    UPPER_TORSO_SLICE_ADJ = 0.05
     zd_adj = z_depth_adjustment(z_depth)
     print(f"z_depth_adjustment:  {zd_adj}")
     slice_col_adj1 = int(slice_cursor * torso_width * UPPER_TORSO_SLICE_ADJ) + (slice_cursor * zd_adj)
@@ -389,7 +389,7 @@ def extract_rects(tbr, tbc, tec, hbr, rows, slice_cursor=0, slice=0, x_rot_adj=0
     #print(f"slice_col_adj1: {slice_col_adj1}")
     #print(f"slice_col_adj2: {slice_col_adj2}")
    
-    LEG_PORTIONS = 15
+    LEG_PORTIONS = 16
     WAIST_EXT_PORTION = 2
     leg_size = rows - tbr
     leg_portion = leg_size // LEG_PORTIONS
@@ -556,7 +556,9 @@ def create_zones16(file_images):
     zones[2][6] = zones[2][8] = zones[6][6] = zones[6][8] = zones[10][7] = zones[10][10] = zones[14][7] = zones[14][10] = [0,0,0,0]
     zones[11][11] = zones[11][13] = zones[11][15] = zones[13][11] = zones[13][13] = zones[13][15] = [0,0,0,0]
     zones[3][12] = zones[3][14] = zones[3][16] = zones[5][12] = zones[5][14] = zones[5][16] = [0,0,0,0]
-    zones[2][1] = zones[6][1] = zones[10][3] = zones[14][3] = [0,0,0,0]    
+    
+    #zones[2][1] = zones[6][1] = zones[10][3] = zones[14][3] = [0,0,0,0]    
+    zones[11][1] = zones[13][1] = zones[3][3] = zones[5][3] = [0,0,0,0]
     
     return zones
 
