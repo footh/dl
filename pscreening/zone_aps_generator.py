@@ -296,7 +296,6 @@ class ZoneApsFileIterator(Iterator):
             extraction = np.asarray(data[zone_rects[j,0]][rb:re,cb:ce])
             extraction = scipy.misc.imresize(extraction, (self.data_shape[1], self.data_shape[2]))
             if self.img_scale and self.subtract_mean:
-                print(f"zone_rects[j,0]: {zone_rects[j,0]}")
                 extraction = extraction - SLICE_MEANS[zone_rects[j,0]]
 
             # Zone data is extracted without the channel. Need to reshape here. If one channel, reshape is simple. If more than one
