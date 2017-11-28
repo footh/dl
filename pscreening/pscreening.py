@@ -299,7 +299,7 @@ def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
     model_version += f"-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}" 
     if version is not None:
         model_version += f"-{version}"
-    print(f"model_version: {model_version")
+    print(f"model_version: {model_version}")
     model_version_el = model_version + "-{epoch:02d}-{val_loss:.3f}"
     
     model_file = model_version_el + '.h5'
