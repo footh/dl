@@ -207,7 +207,7 @@ def get_batches(src, zone, data_shape, batch_size=24, shuffle=True):
                                   batch_size=batch_size,
                                   shuffle=shuffle)
              
-def get_batches_aps(src, zones, data_shape, channels=1, batch_size=24, shuffle=True, labels=True):
+def get_batches_aps(src, zones, data_shape, channels=1, batch_size=24, shuffle=True, labels=True, subtract_mean=False):
     """
         Get generator for files in src (train, valid, test, etc.) for given zone.
         TODO: For now, channels are assumed to be 1
@@ -221,7 +221,8 @@ def get_batches_aps(src, zones, data_shape, channels=1, batch_size=24, shuffle=T
                                   channels=channels,
                                   batch_size=batch_size,
                                   shuffle=shuffle,
-                                  labels=labels)
+                                  labels=labels,
+                                  subtract_mean=subtract_mean)
            
 def _get_model(mtype, output=1, multi_gpu=False):
     if mtype == 'inception':
@@ -260,18 +261,18 @@ def _model_params(model_file):
              
 def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
           version=None, gpus=None, mtype='vgg16', starting_model_file=None,
-          img_dim=200, channels=1):
+          img_dim=200, channels=1, subtract_mean=False):
     if not isinstance(zones, list): zones = [zones]
     
     data_shape = sd.zones_max_dict(round_up=True)[zones[0]]
     data_shape = (data_shape[0],) + (img_dim, img_dim)
 
-    train_batches = get_batches_aps('train', zones, data_shape, channels=channels, batch_size=batch_size, shuffle=True)
+    train_batches = get_batches_aps('train', zones, data_shape, channels=channels, batch_size=batch_size, shuffle=True, subtract_mean=subtract_mean)
     steps_per_epoch = math.ceil(train_batches.samples / train_batches.batch_size)
     print(f"training sample size: {train_batches.samples}")
     print(f"training batch size: {train_batches.batch_size}, steps: {steps_per_epoch}")
 
-    val_batches = get_batches_aps('valid', zones, data_shape, channels=channels, batch_size=batch_size, shuffle=True)    
+    val_batches = get_batches_aps('valid', zones, data_shape, channels=channels, batch_size=batch_size, shuffle=True, subtract_mean=subtract_mean)    
     validation_steps = math.ceil(val_batches.samples / val_batches.batch_size)
     print(f"validation sample size: {val_batches.samples}")
     print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
@@ -318,7 +319,7 @@ def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
          
     return model_version
 
-def test(weights_file, src='test', batch_size=7, evaluate=True):
+def test(weights_file, src='test', batch_size=7, evaluate=True, subtract_mean=False):
     if weights_file is None:
         print(f"Need weights file to test.")
         return
@@ -328,7 +329,7 @@ def test(weights_file, src='test', batch_size=7, evaluate=True):
     data_shape = sd.zones_max_dict(round_up=True)[zones[0]]
     data_shape = (data_shape[0],) + (img_dim, img_dim)
 
-    test_batches = get_batches_aps(src, zones, data_shape, channels=channels, batch_size=batch_size, shuffle=False, labels=evaluate)
+    test_batches = get_batches_aps(src, zones, data_shape, channels=channels, batch_size=batch_size, shuffle=False, labels=evaluate, subtract_mean=subtract_mean)
     test_steps = math.ceil(test_batches.samples / test_batches.batch_size)
     print(f"test sample size: {test_batches.samples}")
     print(f"test batch size: {test_batches.batch_size}, steps: {test_steps}")
@@ -355,7 +356,7 @@ def test(weights_file, src='test', batch_size=7, evaluate=True):
 
     return results
 
-def testm(model_file, src='test', batch_size=7, evaluate=True):
+def testm(model_file, src='test', batch_size=7, evaluate=True, subtract_mean=False):
     if model_file is None:
         print(f"Need model file to test.")
         return
@@ -365,7 +366,7 @@ def testm(model_file, src='test', batch_size=7, evaluate=True):
     data_shape = sd.zones_max_dict(round_up=True)[zones[0]]
     data_shape = (data_shape[0],) + (img_dim, img_dim)
 
-    test_batches = get_batches_aps(src, zones, data_shape, channels=channels, batch_size=batch_size, shuffle=False, labels=evaluate)
+    test_batches = get_batches_aps(src, zones, data_shape, channels=channels, batch_size=batch_size, shuffle=False, labels=evaluate, subtract_mean=subtract_mean)
     test_steps = math.ceil(test_batches.samples / test_batches.batch_size)
     print(f"test sample size: {test_batches.samples}")
     print(f"test batch size: {test_batches.batch_size}, steps: {test_steps}")
@@ -402,6 +403,7 @@ def _ensemble(results_dict_list):
     
     return dict(zip(keys, values))
 
+# TODO: *************** If subtract_mean works well, add it here
 def create_submission_file():
     import csv
     

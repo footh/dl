@@ -7,6 +7,23 @@ import util
 import setup_data as sd
 import scipy
 
+SLICE_MEANS = [39.091, 
+               37.774, 
+               36.193, 
+               34.306, 
+               32.791, 
+               35.935, 
+               38.585, 
+               40.521, 
+               41.894, 
+               40.369, 
+               38.303, 
+               35.670, 
+               33.085,  
+               35.161,  
+               36.799,  
+               38.065]
+
 class ZoneApsGenerator():
     def __init__(self, 
                  dynamic_padding=False):
@@ -28,7 +45,8 @@ class ZoneApsGenerator():
                             channels=1,
                             batch_size=32, 
                             shuffle=True,
-                            labels=True):
+                            labels=True,
+                            subtract_mean=False):
 
         return ZoneApsFileIterator(base_dir,
                                    zones, 
@@ -37,7 +55,8 @@ class ZoneApsGenerator():
                                    channels=channels,
                                    batch_size=batch_size, 
                                    shuffle=shuffle,
-                                   labels=labels)        
+                                   labels=labels,
+                                   subtract_mean=subtract_mean)        
     
 # COPYRIGHT
 # 
@@ -214,7 +233,8 @@ class ZoneApsFileIterator(Iterator):
                  batch_size=32,
                  shuffle=True,
                  img_scale=True,
-                 labels=True):
+                 labels=True,
+                 subtract_mean=False):
 
         self.data_shape = data_shape + (channels,)
         
@@ -229,6 +249,7 @@ class ZoneApsFileIterator(Iterator):
         self.sample_dict = sd.sample_dict(zone=zones[0])
         self.img_scale = img_scale
         self.labels=labels
+        self.subtract_mean=subtract_mean
 
         white_list_formats = {'a3daps'}
 
@@ -274,6 +295,9 @@ class ZoneApsFileIterator(Iterator):
             
             extraction = np.asarray(data[zone_rects[j,0]][rb:re,cb:ce])
             extraction = scipy.misc.imresize(extraction, (self.data_shape[1], self.data_shape[2]))
+            if self.img_scale and self.subtract_mean:
+                print(f"zone_rects[j,0]: {zone_rects[j,0]}")
+                extraction = extraction - SLICE_MEANS[zone_rects[j,0]]
 
             # Zone data is extracted without the channel. Need to reshape here. If one channel, reshape is simple. If more than one
             # data is duplicated 'channels' number of times
