@@ -230,7 +230,7 @@ class ZoneApsFileIterator(Iterator):
         self.img_scale = img_scale
         self.labels=labels
 
-        white_list_formats = {'aps'}
+        white_list_formats = {'a3daps'}
 
         # first, count the number of samples
         self.samples = 0
