@@ -259,13 +259,13 @@ def _model_params(model_file):
     
     return key_zone, zones, mtype, img_dim, channels
              
-def train(zones, epochs=1, batch_size=24, learning_rate=0.001,
+def train(zones, epochs=1, batch_size=32, learning_rate=0.001,
           version=None, gpus=None, mtype='vgg16', starting_model_file=None,
-          img_dim=200, channels=1, subtract_mean=False):
+          img_dim=224, channels=1, subtract_mean=False):
     if not isinstance(zones, list): zones = [zones]
     
-    data_shape = sd.zones_max_dict(round_up=True)[zones[0]]
-    data_shape = (data_shape[0],) + (img_dim, img_dim)
+    #data_shape = sd.zones_max_dict(round_up=True)[zones[0]]
+    data_shape = (len(zone_aps_generator.ZONE_SLICE_DICT[zones[0]]),) + (img_dim, img_dim)
 
     train_batches = get_batches_aps('train', zones, data_shape, channels=channels, batch_size=batch_size, shuffle=True, subtract_mean=subtract_mean)
     steps_per_epoch = math.ceil(train_batches.samples / train_batches.batch_size)
@@ -363,8 +363,8 @@ def testm(model_file, src='test', batch_size=7, evaluate=True, subtract_mean=Fal
     
     _, zones, _, img_dim, channels = _model_params(model_file)
     
-    data_shape = sd.zones_max_dict(round_up=True)[zones[0]]
-    data_shape = (data_shape[0],) + (img_dim, img_dim)
+    #data_shape = sd.zones_max_dict(round_up=True)[zones[0]]
+    data_shape = (len(zone_aps_generator.ZONE_SLICE_DICT[zones[0]]),) + (img_dim, img_dim)
 
     test_batches = get_batches_aps(src, zones, data_shape, channels=channels, batch_size=batch_size, shuffle=False, labels=evaluate, subtract_mean=subtract_mean)
     test_steps = math.ceil(test_batches.samples / test_batches.batch_size)

@@ -85,6 +85,15 @@ def generate_combined(src='all', num=None, method='avg', img_scale=False):
     # np.sum(combined, axis=(1,2))
     
     np.save(f"combined-{src}-{num}", combined)
+    
+def generate_images(src='all', img_perms=10):
+    zone_dict = {
+        6: ([0,8,12], [10,14])
+    }
+
+    files = shuffled_files(src)
+    for file in files:
+        print(f"noop")
            
 def __remove_files(src):
     if os.path.isfile(src):

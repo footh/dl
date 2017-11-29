@@ -24,6 +24,24 @@ SLICE_MEANS = [39.091,
                36.799,  
                38.065]
 
+ZONE_SLICE_DICT = {
+        1: [7,8,9,10,12,14,15,0,1],
+        2: [15,0,1,2,4,6,7,8,9],
+        5: [15,0,1],
+        6: [8,9,10,11,12,13,14,15,0],
+        7: [0,1,2,3,4,5,6,7,8],
+        8: [8,9,10,11,12,13,14,15,0],
+        9: [15,0,1,7,8,9],
+        10: [0,1,2,3,4,5,6,7,8],
+        11: [6,8,9,10,12,14,0,1,2],
+        13: [6,8,9,10,12,14,0,1,2],
+        15: [6,8,9,10,12,14,0,1,2],
+        12: [14,0,1,2,4,6,8,9,10],
+        14: [14,0,1,2,4,6,8,9,10],
+        16: [14,0,1,2,4,6,8,9,10],
+        17: [7,8,9]
+    }
+
 class ZoneApsGenerator():
     def __init__(self, 
                  dynamic_padding=False):
@@ -287,16 +305,19 @@ class ZoneApsFileIterator(Iterator):
             form self.data_shape
         """
         slice_data = np.zeros(self.data_shape, dtype=np.float32)
-        for j in range(zone_rects.shape[0]):
-            rb = zone_rects[j,2]
-            re = zone_rects[j,4]
-            cb = zone_rects[j,1]
-            ce = zone_rects[j,3]
+        
+        zone_rect_dict = {r[0]: r[1:] for r in zone_rects}
+        zone_slices = ZONE_SLICE_DICT[self.zones[0]]
+        for i, j in enumerate(zone_slices):
+            rb = zone_rect_dict[j][1]
+            re = zone_rect_dict[j][3]
+            cb = zone_rect_dict[j][0]
+            ce = zone_rect_dict[j][2]
             
-            extraction = np.asarray(data[zone_rects[j,0]][rb:re,cb:ce])
+            extraction = np.asarray(data[j][rb:re,cb:ce])
             extraction = scipy.misc.imresize(extraction, (self.data_shape[1], self.data_shape[2]))
             if self.img_scale and self.subtract_mean:
-                extraction = extraction - SLICE_MEANS[zone_rects[j,0]]
+                extraction = extraction - SLICE_MEANS[j]
 
             # Zone data is extracted without the channel. Need to reshape here. If one channel, reshape is simple. If more than one
             # data is duplicated 'channels' number of times
@@ -305,7 +326,7 @@ class ZoneApsFileIterator(Iterator):
             else:
                 extraction = np.stack((extraction,)*self.channels, axis=-1)
             
-            slice_data[j] = extraction
+            slice_data[i] = extraction
 
         return slice_data
 
