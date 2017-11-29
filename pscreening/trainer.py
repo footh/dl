@@ -7,11 +7,11 @@ import setup_data as sd
 
 def train(zones, epochs=10, batch_size=32, learning_rate=0.001,
           version=None, gpus=4, mtype='vgg16', starting_model_file=None,
-          img_dim=200, channels=1, subtract_mean=False):
+          img_dim=224, channels=1, subtract_mean=False):
     
     file_prefix = pscreening.train(zones, epochs=epochs, batch_size=batch_size, learning_rate=learning_rate,
                                    version=version, gpus=gpus, mtype=mtype, starting_model_file=starting_model_file,
-                                   img_dim=200, channels=channels, subtract_mean=subtract_mean)
+                                   img_dim=img_dim, channels=channels, subtract_mean=subtract_mean)
     
     print(f"Training completed. File prefix: {file_prefix}. Running tests...")
     
