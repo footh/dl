@@ -269,7 +269,7 @@ class ZoneApsFileIterator(Iterator):
         self.labels=labels
         self.subtract_mean=subtract_mean
 
-        white_list_formats = {'a3daps'}
+        white_list_formats = {'a3daps', 'aps', 'npy'}
 
         # first, count the number of samples
         self.samples = 0
@@ -345,9 +345,13 @@ class ZoneApsFileIterator(Iterator):
         # build batch of image data
         for i, j in enumerate(index_array):
             fname = self.filenames[j]
-            id =  os.path.splitext(os.path.basename(fname))[0]
+            id, ext =  os.path.splitext(os.path.basename(fname))
+             
+            if ext == '.npy':
+                file_data = np.load(fname)
+            else:
+                file_data = util.read_data(fname)
             
-            file_data = util.read_data(fname)
             # TODO: convert to float here?
             if self.img_scale:
                 file_data = scipy.misc.bytescale(np.asarray(file_data))

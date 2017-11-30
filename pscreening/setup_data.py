@@ -102,11 +102,16 @@ def __remove_files(src):
         # map lazy evaluates so must wrap in list to force evaluation
         list(map(__remove_files, [os.path.join(src, fi) for fi in os.listdir(src)]))
         
-def __copy_files(files, src_dir, dest_dir, ext='a3daps'):
+def __copy_files(files, src_dir, dest_dir, ext='a3daps', to_npy=False):
     for f in files:
-        shutil.copy2(os.path.join(src_dir, f + '.' + ext), dest_dir)
+        full_file_path = os.path.join(src_dir, f + '.' + ext)
+        if to_npy:
+            file_data = np.asarray(util.read_data(full_file_path))
+            np.save(os.path.join(dest_dir, f + '.npy'), file_data)
+        else:
+            shutil.copy2(full_file_path, dest_dir)
 
-def setup_data(num_valid=None, num_test=None, ext='a3daps'):
+def setup_data(num_valid=None, num_test=None, ext='a3daps', to_npy=False):
     """
         Moves the unlabeled files to submission dir, and the rest to train, valid and test directories
         Usage: setup_data('data','stage1_labels.csv', num_valid=100, num_test=100)
@@ -138,7 +143,7 @@ def setup_data(num_valid=None, num_test=None, ext='a3daps'):
     # files not labeled are submission data
     submission_keys = list(set(src_files) - set(label_keys))
     print('Copying %s submission files' % len(submission_keys))
-    __copy_files(submission_keys, all_src_dir, submission_dir, ext=ext)    
+    __copy_files(submission_keys, all_src_dir, submission_dir, ext=ext, to_npy=to_npy)    
     
     # shuffle the rest
     shuffled_files = np.random.permutation(label_keys)
@@ -154,13 +159,13 @@ def setup_data(num_valid=None, num_test=None, ext='a3daps'):
         test_count = min(max_non_training, num_test)
          
     print('Copying %s validation files' % valid_count)
-    __copy_files(shuffled_files[:valid_count], all_src_dir, valid_dir, ext=ext)
+    __copy_files(shuffled_files[:valid_count], all_src_dir, valid_dir, ext=ext, to_npy=to_npy)
      
     print('Copying %s test files' % test_count)
-    __copy_files(shuffled_files[valid_count:(valid_count + test_count)], all_src_dir, test_dir, ext=ext)
+    __copy_files(shuffled_files[valid_count:(valid_count + test_count)], all_src_dir, test_dir, ext=ext, to_npy=to_npy)
      
     print('Copying %s training files' % (labeled_count - (valid_count + test_count)))
-    __copy_files(shuffled_files[(valid_count + test_count):], all_src_dir, train_dir, ext=ext)
+    __copy_files(shuffled_files[(valid_count + test_count):], all_src_dir, train_dir, ext=ext, to_npy=to_npy)
 
 def points_file(src='train', padding=False):
     """
