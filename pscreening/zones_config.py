@@ -69,8 +69,10 @@ zone_padding[6][10] = zone_padding[7][10] = zone_padding[8][10] = zone_padding[9
 zone_padding[6][9] = zone_padding[7][9] = zone_padding[8][9] = zone_padding[9][9] = zone_padding[10][9] = [-10,0,10,10]
 zone_padding[6][8] = zone_padding[7][8] = zone_padding[8][8] = zone_padding[9][8] = zone_padding[10][8] = [-10,0,50,10]
 
-def apply_padding(zones):
+def apply_padding(zones, max_width=512, max_height=660):
     for i in range(zones.shape[0]):
         for j in range(1, zones.shape[1]):
             if np.sum(zones[i][j]) > 0:
-                zones[i][j] = zones[i][j] + zone_padding[i][j]
+                update = zones[i][j] + zone_padding[i][j]
+                update = [max(0, update[0]), max(0, update[1]), min(max_width, update[2]), min(max_height, update[3])]
+                zones[i][j] = update

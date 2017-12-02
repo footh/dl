@@ -181,10 +181,11 @@ def points_file(src='train', padding=False):
             f_count += 1
             print(f"Reading file {f}...")
             file_images = util.read_data(f, as_images=True)
+            w, h = file_images[0].size
             print(f"Creating zones...")
             zone_rects = z.create_zones16(file_images)
             if padding:
-                zones_config.apply_padding(zone_rects)
+                zones_config.apply_padding(zone_rects, max_width=w, max_height=h)
             print(f"Write record...")
             for i in range(16):
                 row = [[f], [i]] + [list(zone_rects[i][j]) for j in ZONE_EXTRACTIONS]
@@ -356,3 +357,44 @@ def zone_info(zones=17):
         label_probs.append(len(labels[i]) / ttl)
         
     return labels, label_probs
+
+def setup_zones(zones, positive_count=5, test_count=47):
+    
+    train_dir = os.path.join(config.PSCREENING_HOME, config.RAW_DATA_DIR, 'train')
+    test_dir = os.path.join(config.PSCREENING_HOME, config.RAW_DATA_DIR, 'test')
+
+    test_files = shuffled_files('test')
+    print(f"Moving test files back to train...")
+    for test_file in test_files:
+        shutil.move(test_file, train_dir)
+        
+    train_files = shuffled_files('train')
+    train_key_dict = {get_file_name(tf): tf for tf in train_files}
+    
+    l, p = zone_info()
+    zone_pos_keys = []
+    for zone in zones:
+        zone_pos_keys = zone_pos_keys + l[zone-1]
+    
+    zone_pos_keys = list(set(zone_pos_keys))
+    zone_pos_keys = np.random.permutation(zone_pos_keys)
+    print(f"Found {len(zone_pos_keys)} zone positive keys for zones {zones}...")
+
+    for i, k in enumerate(zone_pos_keys):
+        if i < positive_count:
+            print(f"Moving file with key {k} to test directory...")
+            shutil.move(train_key_dict[k], test_dir)
+            
+        train_key_dict.pop(k)
+        
+    leftover_train_files = list(train_key_dict.values())
+    print(f"{len(leftover_train_files)} train files left...")
+    leftover_train_files = np.random.permutation(leftover_train_files)
+    
+    print(f"Moving {test_count-positive_count} more files to test directory")
+    for i in range(test_count-positive_count):
+        shutil.move(leftover_train_files[i], test_dir)
+        
+    
+    
+    

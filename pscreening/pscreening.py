@@ -63,7 +63,7 @@ class PScreeningModel():
         # Run the frames through an LSTM
         lstm_output = tf.keras.layers.LSTM(256)(td_frame_sequence)
         # Add a dense layer similar to vgg16 (TODO: may not need this?)
-        x = tf.keras.layers.Dense(4096)(lstm_output)
+        x = tf.keras.layers.Dense(2048)(lstm_output)
         #x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.layers.Activation('relu')(x)
         x = tf.keras.layers.Dropout(0.5)(x)
@@ -272,10 +272,12 @@ def train(zones, epochs=1, batch_size=32, learning_rate=0.001,
     print(f"training sample size: {train_batches.samples}")
     print(f"training batch size: {train_batches.batch_size}, steps: {steps_per_epoch}")
 
-    val_batches = get_batches_aps('valid', zones, data_shape, channels=channels, batch_size=batch_size, shuffle=True, subtract_mean=subtract_mean)    
-    validation_steps = math.ceil(val_batches.samples / val_batches.batch_size)
-    print(f"validation sample size: {val_batches.samples}")
-    print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
+    val_batches=None
+    validation_steps=None
+    #val_batches = get_batches_aps('valid', zones, data_shape, channels=channels, batch_size=batch_size, shuffle=True, subtract_mean=subtract_mean)    
+    #validation_steps = math.ceil(val_batches.samples / val_batches.batch_size)
+    #print(f"validation sample size: {val_batches.samples}")
+    #print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
     
     #----------------------------------
     train_model = None
@@ -356,7 +358,7 @@ def test(weights_file, src='test', batch_size=7, evaluate=True, subtract_mean=Fa
 
     return results
 
-def testm(model_file, src='test', batch_size=7, evaluate=True, subtract_mean=False):
+def testm(model_file, src='test', batch_size=6, evaluate=True, subtract_mean=False):
     if model_file is None:
         print(f"Need model file to test.")
         return
