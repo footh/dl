@@ -56,7 +56,7 @@ class ZoneApsGenerator():
         
     # Data shape here should be as it is saved on disk. The channels argument will assure
     # the channels are added properly
-    def flow_from_directory(self, 
+    def flow_from_directory(self,
                             base_dir,
                             zones,
                             data_shape=None,
@@ -64,6 +64,7 @@ class ZoneApsGenerator():
                             batch_size=32, 
                             shuffle=True,
                             labels=True,
+                            img_scale=True,
                             subtract_mean=False):
 
         return ZoneApsFileIterator(base_dir,
@@ -74,7 +75,8 @@ class ZoneApsGenerator():
                                    batch_size=batch_size, 
                                    shuffle=shuffle,
                                    labels=labels,
-                                   subtract_mean=subtract_mean)        
+                                   img_scale=img_scale,
+                                   subtract_mean=subtract_mean)
     
 # COPYRIGHT
 # 
@@ -315,9 +317,15 @@ class ZoneApsFileIterator(Iterator):
             ce = zone_rect_dict[j][2]
             
             extraction = np.asarray(data[j][rb:re,cb:ce])
-            extraction = scipy.misc.imresize(extraction, (self.data_shape[1], self.data_shape[2]))
+            mode = 'L' if self.img_scale else 'F'
+            extraction = scipy.misc.imresize(extraction, (self.data_shape[1], self.data_shape[2]), mode=mode)
             if self.img_scale and self.subtract_mean:
                 extraction = extraction - SLICE_MEANS[j]
+
+            # TODO: for inception, make this logic better, perhaps pass in a lambda based on model?
+            if not self.img_scale:
+                extraction -= 0.5
+                extraction *= 2.
 
             # Zone data is extracted without the channel. Need to reshape here. If one channel, reshape is simple. If more than one
             # data is duplicated 'channels' number of times
@@ -325,7 +333,7 @@ class ZoneApsFileIterator(Iterator):
                 extraction = extraction.reshape(self.data_shape[1:])
             else:
                 extraction = np.stack((extraction,)*self.channels, axis=-1)
-            
+               
             slice_data[i] = extraction
 
         return slice_data
