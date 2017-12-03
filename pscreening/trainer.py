@@ -4,7 +4,6 @@ import tensorflow as tf
 import os
 import config
 import setup_data as sd
-import csv
 
 def _print_results(results_dict):
     for model_file, results in results_dict.items():
@@ -12,6 +11,8 @@ def _print_results(results_dict):
         print(f"{results}")
 
 def save_results(file_prefix, csv=True):
+    import csv
+
     model_files = glob.glob(os.path.join(config.PSCREENING_HOME, config.MODEL_DIR, f"{file_prefix}*.h5"))
     
     with open(f"{file_prefix}.csv", 'w') as results_file:
