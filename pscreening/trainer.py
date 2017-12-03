@@ -25,6 +25,7 @@ def train(zones, epochs=10, batch_size=20, learning_rate=0.001,
         val_loss = float(sd.get_file_name(model_file).split('-')[-1])
         results = pscreening.testm(model_file)
         results_dict[model_file] = [val_loss] + results
+        print(f"{[val_loss] + results}")
         
     print(f"Testing completed. Printing results...")
     
