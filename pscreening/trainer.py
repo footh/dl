@@ -46,7 +46,7 @@ def train(zones, epochs=10, batch_size=20, learning_rate=0.001,
     
     file_prefix = pscreening.train(zones, epochs=epochs, batch_size=batch_size, learning_rate=learning_rate,
                                    version=version, gpus=gpus, mtype=mtype, starting_model_file=starting_model_file,
-                                   img_dim=img_dim, channels=channels)
+                                   img_dim=img_dim, channels=channels, train_layer_start=train_layer_start)
     
     print(f"Training completed. File prefix: {file_prefix}. Running tests...")
     

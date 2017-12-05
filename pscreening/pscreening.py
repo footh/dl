@@ -279,7 +279,7 @@ def _set_trainable(model, start):
     td_layer = [l for l in self.model.layers if l.__class__.__name__ == 'TimeDistributed'][0]
     print(f"TimeDistributed layer found!!!!")
     img_model = [l for l in td.layer.layers if l.__class__.__name__ == 'Model'][0]
-    print(f"Found image model with {len(img_model.layers} layers!!!!")
+    print(f"Found image model with {len(img_model.layers)} layers!!!!")
     print(f"Setting trainable...")
     for layer in img_model.layers[start:]:
         layer.trainable = True
