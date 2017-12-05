@@ -274,6 +274,15 @@ def _model_params(model_file):
     channels = int(params[3].replace('c', ''))
     
     return key_zone, zones, mtype, img_dim, channels
+
+def _set_trainable(model, start):
+    td_layer = [l for l in self.model.layers if l.__class__.__name__ == 'TimeDistributed'][0]
+    print(f"TimeDistributed layer found!!!!")
+    img_model = [l for l in td.layer.layers if l.__class__.__name__ == 'Model'][0]
+    print(f"Found image model with {len(img_model.layers} layers!!!!")
+    print(f"Setting trainable...")
+    for layer in img_model.layers[start:]:
+        layer.trainable = True
              
 def train(zones, epochs=1, batch_size=32, learning_rate=0.001,
           version=None, gpus=None, mtype='vgg16', starting_model_file=None,
@@ -300,6 +309,8 @@ def train(zones, epochs=1, batch_size=32, learning_rate=0.001,
         # https://github.com/fchollet/keras/issues/6865 (why I must compile saved model
         smf_path = os.path.join(config.PSCREENING_HOME, config.MODEL_DIR, starting_model_file)
         train_model = tf.keras.models.load_model(smf_path)
+        if train_layer_start is not None:
+            _set_trainable(train_model, train_layer_start)
         _, _, mtype, _, _ = _model_params(starting_model_file)
     else:
         ps_model = _get_model(mtype, output=len(zones), multi_gpu=(gpus is not None), train_layer_start=train_layer_start)
@@ -318,7 +329,7 @@ def train(zones, epochs=1, batch_size=32, learning_rate=0.001,
     if version is not None:
         model_version += f"-{version}"
     print(f"model_version: {model_version}")
-    model_version_el = model_version + "-{epoch:02d}-{loss:.3f}"
+    model_version_el = model_version + "-{epoch:02d}-{val_loss:.3f}"
     
     model_file = model_version_el + '.h5'
     model_file = os.path.join(config.PSCREENING_HOME, config.MODEL_DIR, model_file)
