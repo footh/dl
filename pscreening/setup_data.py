@@ -358,15 +358,15 @@ def zone_info(zones=17):
         
     return labels, label_probs
 
-def setup_zones(zones, positive_count=5, test_count=47):
+def setup_zones(zones, src='test', positive_count=5, test_count=47):
     
     train_dir = os.path.join(config.PSCREENING_HOME, config.RAW_DATA_DIR, 'train')
-    test_dir = os.path.join(config.PSCREENING_HOME, config.RAW_DATA_DIR, 'test')
+    src_dir = os.path.join(config.PSCREENING_HOME, config.RAW_DATA_DIR, src)
 
-    test_files = shuffled_files('test')
-    print(f"Moving test files back to train...")
-    for test_file in test_files:
-        shutil.move(test_file, train_dir)
+    src_files = shuffled_files(src)
+    print(f"Moving {src} files back to train...")
+    for src_file in src_files:
+        shutil.move(src_file, train_dir)
         
     train_files = shuffled_files('train')
     train_key_dict = {get_file_name(tf): tf for tf in train_files}
@@ -382,8 +382,8 @@ def setup_zones(zones, positive_count=5, test_count=47):
 
     for i, k in enumerate(zone_pos_keys):
         if i < positive_count:
-            print(f"Moving file with key {k} to test directory...")
-            shutil.move(train_key_dict[k], test_dir)
+            print(f"Moving file with key {k} to {src} directory...")
+            shutil.move(train_key_dict[k], src_dir)
             
         train_key_dict.pop(k)
         
@@ -393,7 +393,7 @@ def setup_zones(zones, positive_count=5, test_count=47):
     
     print(f"Moving {test_count-positive_count} more files to test directory")
     for i in range(test_count-positive_count):
-        shutil.move(leftover_train_files[i], test_dir)
+        shutil.move(leftover_train_files[i], src_dir)
         
     
     

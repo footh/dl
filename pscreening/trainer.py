@@ -10,7 +10,7 @@ def _print_results(results_dict):
         print(f"{model_file}")
         print(f"{results}")
 
-def save_results(file_prefix, csv=True):
+def test(file_prefix, csv=True):
     import csv
 
     model_files = glob.glob(os.path.join(config.PSCREENING_HOME, config.MODEL_DIR, f"{file_prefix}*.h5"))
@@ -42,7 +42,7 @@ def save_results(file_prefix, csv=True):
 
 def train(zones, epochs=10, batch_size=20, learning_rate=0.001,
           version=None, gpus=4, mtype='vgg16', starting_model_file=None,
-          img_dim=224, channels=1):
+          img_dim=224, channels=1, run_tests=False):
     
     file_prefix = pscreening.train(zones, epochs=epochs, batch_size=batch_size, learning_rate=learning_rate,
                                    version=version, gpus=gpus, mtype=mtype, starting_model_file=starting_model_file,
@@ -50,5 +50,6 @@ def train(zones, epochs=10, batch_size=20, learning_rate=0.001,
     
     print(f"Training completed. File prefix: {file_prefix}. Running tests...")
     
-    save_results(file_prefix)    
+    if run_tests:
+        test(file_prefix)    
     

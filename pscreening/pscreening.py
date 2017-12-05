@@ -15,7 +15,7 @@ from collections import defaultdict
 
 
 class PScreeningModel():
-    def __init__(self, output=1, multi_gpu=False):
+    def __init__(self, output=1, multi_gpu=False, train_layer_start=None):
         cfg = tf.ConfigProto()
         cfg.gpu_options.allow_growth = True
         #cfg.log_device_placement = True
@@ -27,6 +27,7 @@ class PScreeningModel():
         self.input_shape = None
         self.multi_gpu = multi_gpu
         self.output=output
+        self.train_layer_start = train_layer_start
 
     def get_image_model(self, input_shape):
         """
@@ -105,6 +106,10 @@ class InceptionModel(PScreeningModel):
         for layer in model.layers:
             #print(f"{self.name} layer: {layer}")
             layer.trainable = False
+            
+        if self.train_layer_start is not None:
+            for layer in model.layers[train_layer_start:]:
+                layer.trainable = True
 
         return model
 
@@ -122,7 +127,11 @@ class VGG16Model(PScreeningModel):
         for layer in model.layers:
             #print(f"{self.name} layer: {layer}")
             layer.trainable = False
-
+        
+        if self.train_layer_start is not None:
+            for layer in model.layers[train_layer_start:]:
+                layer.trainable = True
+            
         return model
     
 class ResNet50Model(PScreeningModel):
@@ -225,19 +234,19 @@ def get_batches_aps(src, zones, data_shape, channels=1, batch_size=24, shuffle=T
                                   img_scale=img_scale,
                                   subtract_mean=subtract_mean)
            
-def _get_model(mtype, output=1, multi_gpu=False):
+def _get_model(mtype, output=1, multi_gpu=False, train_layer_start=None):
     if mtype == 'inception':
-        ps_model = InceptionModel(output=output, multi_gpu=multi_gpu)
+        ps_model = InceptionModel(output=output, multi_gpu=multi_gpu, train_layer_start=train_layer_start)
     elif mtype == 'resnet50':
-        ps_model = ResNet50Model(output=output, multi_gpu=multi_gpu)
+        ps_model = ResNet50Model(output=output, multi_gpu=multi_gpu, train_layer_start=train_layer_start)
     elif mtype == 'inceptionresnet':
-        ps_model = InceptionResNetModel(output=output, multi_gpu=multi_gpu)
+        ps_model = InceptionResNetModel(output=output, multi_gpu=multi_gpu, train_layer_start=train_layer_start)
     elif mtype == 'xception':
-        ps_model = XceptionModel(output=output, multi_gpu=multi_gpu)
+        ps_model = XceptionModel(output=output, multi_gpu=multi_gpu, train_layer_start=train_layer_start)
     elif mtype == 'mobilenet':
-        ps_model = MobileNetModel(output=output, multi_gpu=multi_gpu)
+        ps_model = MobileNetModel(output=output, multi_gpu=multi_gpu, train_layer_start=train_layer_start)
     else:
-        ps_model = VGG16Model(output=output, multi_gpu=multi_gpu)
+        ps_model = VGG16Model(output=output, multi_gpu=multi_gpu, train_layer_start=train_layer_start)
         
     return ps_model
         
@@ -262,7 +271,7 @@ def _model_params(model_file):
              
 def train(zones, epochs=1, batch_size=32, learning_rate=0.001,
           version=None, gpus=None, mtype='vgg16', starting_model_file=None,
-          img_dim=224, channels=1):
+          img_dim=224, channels=1, train_layer_start=None):
     if not isinstance(zones, list): zones = [zones]
     
     #data_shape = sd.zones_max_dict(round_up=True)[zones[0]]
@@ -274,12 +283,10 @@ def train(zones, epochs=1, batch_size=32, learning_rate=0.001,
     print(f"training sample size: {train_batches.samples}")
     print(f"training batch size: {train_batches.batch_size}, steps: {steps_per_epoch}")
 
-    val_batches=None
-    validation_steps=None
-    #val_batches = get_batches_aps('valid', zones, data_shape, channels=channels, batch_size=batch_size, shuffle=True, subtract_mean=subtract_mean)    
-    #validation_steps = math.ceil(val_batches.samples / val_batches.batch_size)
-    #print(f"validation sample size: {val_batches.samples}")
-    #print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
+    val_batches = get_batches_aps('valid', zones, data_shape, channels=channels, batch_size=batch_size, shuffle=True, subtract_mean=subtract_mean)    
+    validation_steps = math.ceil(val_batches.samples / val_batches.batch_size)
+    print(f"validation sample size: {val_batches.samples}")
+    print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
     
     #----------------------------------
     train_model = None
@@ -289,7 +296,7 @@ def train(zones, epochs=1, batch_size=32, learning_rate=0.001,
         train_model = tf.keras.models.load_model(smf_path)
         _, _, mtype, _, _ = _model_params(starting_model_file)
     else:
-        ps_model = _get_model(mtype, output=len(zones), multi_gpu=(gpus is not None))
+        ps_model = _get_model(mtype, output=len(zones), multi_gpu=(gpus is not None), train_layer_start=train_layer_start)
         #TODO: create the model with None as the time dimension? When looking at the code it looked like TimeDistributed
         #acts differently when None is passed as opposed to a fixed dimension. 
         ps_model.create(input_shape=train_batches.data_shape)
