@@ -42,7 +42,7 @@ def test(file_prefix, csv=True):
 
 def train(zones, epochs=10, batch_size=20, learning_rate=0.001,
           version=None, gpus=4, mtype='vgg16', starting_model_file=None,
-          img_dim=224, channels=1, run_tests=False):
+          img_dim=224, channels=1, train_layer_start=None, run_tests=False):
     
     file_prefix = pscreening.train(zones, epochs=epochs, batch_size=batch_size, learning_rate=learning_rate,
                                    version=version, gpus=gpus, mtype=mtype, starting_model_file=starting_model_file,

@@ -108,8 +108,11 @@ class InceptionModel(PScreeningModel):
             layer.trainable = False
             
         if self.train_layer_start is not None:
+            print(f"TRAINING ALLOWED FROM LAYER {train_layer_start}!!!!!!!!!!!!!!!!!")
             for layer in model.layers[train_layer_start:]:
                 layer.trainable = True
+        else:
+            print(f"NO TRAINING ALLOWED!!!!!!!!!!!!!!")
 
         return model
 
@@ -129,8 +132,11 @@ class VGG16Model(PScreeningModel):
             layer.trainable = False
         
         if self.train_layer_start is not None:
+            print(f"TRAINING ALLOWED FROM LAYER {train_layer_start}!!!!!!!!!!!!!!!!!")
             for layer in model.layers[train_layer_start:]:
                 layer.trainable = True
+        else:
+            print(f"NO TRAINING ALLOWED!!!!!!!!!!!!!!")
             
         return model
     
