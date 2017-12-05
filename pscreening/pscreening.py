@@ -108,11 +108,11 @@ class InceptionModel(PScreeningModel):
             layer.trainable = False
             
         if self.train_layer_start is not None:
-            print(f"TRAINING ALLOWED FROM LAYER {train_layer_start}!!!!!!!!!!!!!!!!!")
-            for layer in model.layers[train_layer_start:]:
+            print(f"TRAINING ALLOWED FROM LAYER {self.train_layer_start}")
+            for layer in model.layers[self.train_layer_start:]:
                 layer.trainable = True
         else:
-            print(f"NO TRAINING ALLOWED!!!!!!!!!!!!!!")
+            print(f"NO TRAINING ALLOWED")
 
         return model
 
@@ -132,11 +132,11 @@ class VGG16Model(PScreeningModel):
             layer.trainable = False
         
         if self.train_layer_start is not None:
-            print(f"TRAINING ALLOWED FROM LAYER {train_layer_start}!!!!!!!!!!!!!!!!!")
-            for layer in model.layers[train_layer_start:]:
+            print(f"TRAINING ALLOWED FROM LAYER {self.train_layer_start}")
+            for layer in model.layers[self.train_layer_start:]:
                 layer.trainable = True
         else:
-            print(f"NO TRAINING ALLOWED!!!!!!!!!!!!!!")
+            print(f"NO TRAINING ALLOWED")
             
         return model
     
@@ -276,9 +276,9 @@ def _model_params(model_file):
     return key_zone, zones, mtype, img_dim, channels
 
 def _set_trainable(model, start):
-    td_layer = [l for l in self.model.layers if l.__class__.__name__ == 'TimeDistributed'][0]
+    td_layer = [l for l in model.layers if l.__class__.__name__ == 'TimeDistributed'][0]
     print(f"TimeDistributed layer found!!!!")
-    img_model = [l for l in td.layer.layers if l.__class__.__name__ == 'Model'][0]
+    img_model = [l for l in td_layer.layer.layers if l.__class__.__name__ == 'Model'][0]
     print(f"Found image model with {len(img_model.layers)} layers!!!!")
     print(f"Setting trainable...")
     for layer in img_model.layers[start:]:

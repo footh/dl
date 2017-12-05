@@ -395,6 +395,3 @@ def setup_zones(zones, src='test', positive_count=5, test_count=47):
     for i in range(test_count-positive_count):
         shutil.move(leftover_train_files[i], src_dir)
         
-    
-    
-    
