@@ -289,7 +289,7 @@ def train(zones, epochs=1, batch_size=32, learning_rate=0.001,
     print(f"training sample size: {train_batches.samples}")
     print(f"training batch size: {train_batches.batch_size}, steps: {steps_per_epoch}")
 
-    val_batches = get_batches_aps('valid', zones, data_shape, channels=channels, batch_size=batch_size, shuffle=True, subtract_mean=subtract_mean)    
+    val_batches = get_batches_aps('valid', zones, data_shape, channels=channels, batch_size=batch_size, shuffle=True)    
     validation_steps = math.ceil(val_batches.samples / val_batches.batch_size)
     print(f"validation sample size: {val_batches.samples}")
     print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
