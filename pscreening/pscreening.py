@@ -6,6 +6,7 @@ import config
 import setup_data as sd
 import zone_generator
 import zone_aps_generator2
+import zone_aps_generator
 import callbacks
 import math
 import datetime
@@ -222,7 +223,7 @@ def get_batches(src, zone, data_shape, batch_size=24, shuffle=True):
                                   batch_size=batch_size,
                                   shuffle=shuffle)
              
-def get_batches_aps(src, zones, data_shape, channels=1, batch_size=24, shuffle=True, labels=True, img_scale=True, subtract_mean=False):
+def get_batches_aps_train(src, zones, data_shape, channels=1, batch_size=24, shuffle=True, labels=True, img_scale=True, subtract_mean=False):
     """
         Get generator for files in src (train, valid, test, etc.) for given zone.
         TODO: For now, channels are assumed to be 1
@@ -230,6 +231,24 @@ def get_batches_aps(src, zones, data_shape, channels=1, batch_size=24, shuffle=T
     base_dir = os.path.join(config.PSCREENING_LOCAL_HOME, config.RAW_DATA_DIR, src)
     
     zg = zone_aps_generator2.ZoneApsGenerator()
+    return zg.flow_from_directory(base_dir,
+                                  zones,
+                                  data_shape=data_shape,
+                                  channels=channels,
+                                  batch_size=batch_size,
+                                  shuffle=shuffle,
+                                  labels=labels,
+                                  img_scale=img_scale,
+                                  subtract_mean=subtract_mean)
+
+def get_batches_aps_test(src, zones, data_shape, channels=1, batch_size=24, shuffle=True, labels=True, img_scale=True, subtract_mean=False):
+    """
+        Get generator for files in src (train, valid, test, etc.) for given zone.
+        TODO: For now, channels are assumed to be 1
+    """
+    base_dir = os.path.join(config.PSCREENING_LOCAL_HOME, config.RAW_DATA_DIR, src)
+    
+    zg = zone_aps_generator.ZoneApsGenerator()
     return zg.flow_from_directory(base_dir,
                                   zones,
                                   data_shape=data_shape,
@@ -290,15 +309,15 @@ def train(zones, epochs=1, batch_size=32, learning_rate=0.001,
     if not isinstance(zones, list): zones = [zones]
     
     #data_shape = sd.zones_max_dict(round_up=True)[zones[0]]
-    data_shape = (len(zone_aps_generator.ZONE_SLICE_DICT[zones[0]]),) + (img_dim, img_dim)
+    data_shape = (len(zone_aps_generator2.ZONE_SLICE_DICT[zones[0]]),) + (img_dim, img_dim)
 
     img_scale = True if mtype=='vgg16' else False
-    train_batches = get_batches_aps('train', zones, data_shape, channels=channels, batch_size=batch_size, shuffle=True, img_scale=img_scale)
-    steps_per_epoch = math.ceil(train_batches.samples / train_batches.batch_size)
+    train_batches = get_batches_aps_train('train', zones, data_shape, channels=channels, batch_size=batch_size, shuffle=True, img_scale=img_scale)
+    steps_per_epoch = math.ceil(train_batches.samples / train_batches.batch_size) * 4
     print(f"training sample size: {train_batches.samples}")
     print(f"training batch size: {train_batches.batch_size}, steps: {steps_per_epoch}")
 
-    val_batches = get_batches_aps('valid', zones, data_shape, channels=channels, batch_size=batch_size, shuffle=True)    
+    val_batches = get_batches_aps_train('valid', zones, data_shape, channels=channels, batch_size=batch_size, shuffle=True)    
     validation_steps = math.ceil(val_batches.samples / val_batches.batch_size)
     print(f"validation sample size: {val_batches.samples}")
     print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
@@ -346,43 +365,6 @@ def train(zones, epochs=1, batch_size=32, learning_rate=0.001,
                               class_weight={0:1-weight1, 1:weight1})
          
     return model_version
-
-def test(weights_file, src='test', batch_size=7, evaluate=True):
-    if weights_file is None:
-        print(f"Need weights file to test.")
-        return
-    
-    key_zone, zones, mtype, img_dim, channels = _model_params(weights_file)
-    
-    data_shape = sd.zones_max_dict(round_up=True)[zones[0]]
-    data_shape = (data_shape[0],) + (img_dim, img_dim)
-
-    test_batches = get_batches_aps(src, zones, data_shape, channels=channels, batch_size=batch_size, shuffle=False, labels=evaluate)
-    test_steps = math.ceil(test_batches.samples / test_batches.batch_size)
-    print(f"test sample size: {test_batches.samples}")
-    print(f"test batch size: {test_batches.batch_size}, steps: {test_steps}")
-
-    ps_model = _get_model(mtype, output=len(zones))
-
-    # Assuming one-channel inputs for now.
-    ps_model.create(input_shape=test_batches.data_shape)
-    ps_model.model.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001), loss='binary_crossentropy', metrics=['accuracy'])
-
-    weights_dir = config.WEIGHTS_DIR
-    if src == 'submission': weights_dir = 'submission-' + weights_dir
-    weights_file_path = os.path.join(config.PSCREENING_HOME, weights_dir, weights_file)
-    ps_model.model.load_weights(weights_file_path)
-    
-    results = None
-    if evaluate:
-        results = ps_model.model.evaluate_generator(test_batches, test_steps)
-    else:
-        results = ps_model.model.predict_generator(test_batches, test_steps)
-        # The 'filenames' argument is expected to be the order of the results since shuffle is set to False
-        ids = [sd.get_file_name(fname) for fname in test_batches.filenames]
-        results = dict(zip(ids, results))
-
-    return results
 
 def testm(model_file, src='test', batch_size=6, evaluate=True):
     if model_file is None:
