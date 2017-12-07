@@ -62,7 +62,7 @@ class PScreeningModel():
         # shape (num_frames, flattened output of vision model)
         td_frame_sequence = tf.keras.layers.TimeDistributed(vision_model)(frame_input)
         # Run the frames through an LSTM
-        lstm_output = tf.keras.layers.LSTM(256)(td_frame_sequence)
+        lstm_output = tf.keras.layers.LSTM(256, dropout=0.5)(td_frame_sequence)
         # Add a dense layer similar to vgg16 (TODO: may not need this?)
         x = tf.keras.layers.Dense(2048)(lstm_output)
         #x = tf.keras.layers.BatchNormalization()(x)
