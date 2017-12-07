@@ -307,17 +307,15 @@ class ZoneApsFileIterator(Iterator):
         pool.join()
         super().__init__(self.samples, batch_size, shuffle)
         
-    def _extract_zones(self, active_zones, data):
+    def _extract_zones(self, key_zone, zone_rects, data):
         """
             Extracts zones from data based on zone_rects, resizes rects to data_shape, and reshapes to channel. Result is an array of the 
             form self.data_shape
-        """
-        zone_rects = sd.get_zone_chunk(active_zones[0], self.sample_dict[id])
-        
+        """        
         slice_data = np.zeros(self.data_shape, dtype=np.float32)
         
         zone_rect_dict = {r[0]: r[1:] for r in zone_rects}
-        zone_slices = ZONE_SLICE_DICT[active_zones[0]]
+        zone_slices = ZONE_SLICE_DICT[key_zone]
         for i, j in enumerate(zone_slices):
             rb = zone_rect_dict[j][1]
             re = zone_rect_dict[j][3]
@@ -330,11 +328,6 @@ class ZoneApsFileIterator(Iterator):
             if self.img_scale and self.subtract_mean:
                 extraction = extraction - SLICE_MEANS[j]
                 
-            # Randomly flip the image
-            if random.randint(0,1): extraction = extraction(...,::-1)
-            # Randomly flip the temporal row
-            if random.randint(0,1): extraction = extraction[::-1,...]
-
             # TODO: for inception, make this logic better, perhaps pass in a lambda based on model?
             if not self.img_scale:
                 extraction -= 0.5
@@ -348,6 +341,11 @@ class ZoneApsFileIterator(Iterator):
                 extraction = np.stack((extraction,)*self.channels, axis=-1)
                
             slice_data[i] = extraction
+            
+        # Randomly flip the image
+        if random.randint(0,1): slice_data = slice_data[:,:,::-1,:]
+        # Randomly flip the temporal row
+        if random.randint(0,1): slice_data = slice_data[::-1,...]
 
         return slice_data
 
@@ -366,10 +364,6 @@ class ZoneApsFileIterator(Iterator):
         batch_y = np.zeros((current_batch_size, len(self.zones)), dtype=np.float32)
         # build batch of image data
         for i, j in enumerate(index_array):
-            active_zones = self.zones
-            if zones[0] in ZONE_COMBOS_DICT:
-                active_zones = random.choice(ZONE_COMBOS_DICT[self.zones[0]])
-            active_zone_indices = [z-1 for z in active_zones]
             
             fname = self.filenames[j]
             id, ext =  os.path.splitext(os.path.basename(fname))
@@ -383,10 +377,16 @@ class ZoneApsFileIterator(Iterator):
             if self.img_scale:
                 file_data = scipy.misc.bytescale(np.asarray(file_data))
                 
-            batch_x[i] = self._extract_zones(active_zones, file_data)
+            active_zones = self.zones
+            if self.zones[0] in ZONE_COMBOS_DICT:
+                active_zones = random.choice(ZONE_COMBOS_DICT[self.zones[0]])
+            active_zone_indices = [z-1 for z in active_zones]
+                        
+            zone_rects = sd.get_zone_chunk(active_zones[0], self.sample_dict[id])
+            batch_x[i] = self._extract_zones(active_zones[0], zone_rects, file_data)
             
             if self.labels:
-                batch_y[i] = self.label_dict[id][self.active_zone_indices]
+                batch_y[i] = self.label_dict[id][active_zone_indices]
 
         if self.labels:
             return batch_x, batch_y
