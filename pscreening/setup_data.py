@@ -303,6 +303,13 @@ def extract_zones(src='train', sample_file='points-all.csv', slice_count=16,
             cnt += 1
             print(f"Finished row {cnt}")
             
+def get_zone_chunk(zone, sample_chunk, area_threshold=0):
+    """
+        Given the entire sample_chunk from points file for an id, this will get the portin specific to the passed in zone
+    """
+    zone_idx = ZONE_EXTRACTIONS.index(zone)
+    return _valid_rects(zone_idx, sample_chunk, area_threshold=area_threshold)
+
 def sample_dict(all_file='points-all.csv', slice_count=16, zone=None, area_threshold=0):
     """
         Gets a dict of sample id => sample chunk from points file. If zone is given, then only the slice and rects will be returned
@@ -318,8 +325,7 @@ def sample_dict(all_file='points-all.csv', slice_count=16, zone=None, area_thres
         for sample_chunk in sample_chunks:
             id = get_file_name(sample_chunk[0, 0])
             if zone is not None:
-                zone_idx = ZONE_EXTRACTIONS.index(zone)
-                sample_chunk = _valid_rects(zone_idx, sample_chunk, area_threshold=area_threshold)
+                sample_chunk = get_zone_chunk(zone, sample_chunk, area_threshold=area_threshold)
                 
             sample_dict[id] = sample_chunk
             

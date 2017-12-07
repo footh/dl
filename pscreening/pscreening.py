@@ -5,7 +5,7 @@ import tensorflow as tf
 import config
 import setup_data as sd
 import zone_generator
-import zone_aps_generator
+import zone_aps_generator2
 import callbacks
 import math
 import datetime
@@ -229,7 +229,7 @@ def get_batches_aps(src, zones, data_shape, channels=1, batch_size=24, shuffle=T
     """
     base_dir = os.path.join(config.PSCREENING_LOCAL_HOME, config.RAW_DATA_DIR, src)
     
-    zg = zone_aps_generator.ZoneApsGenerator()
+    zg = zone_aps_generator2.ZoneApsGenerator()
     return zg.flow_from_directory(base_dir,
                                   zones,
                                   data_shape=data_shape,
