@@ -317,8 +317,8 @@ def train(zones, epochs=1, batch_size=32, learning_rate=0.001,
     print(f"training sample size: {train_batches.samples}")
     print(f"training batch size: {train_batches.batch_size}, steps: {steps_per_epoch}")
 
-    val_batches = get_batches_aps_train('valid', zones, data_shape, channels=channels, batch_size=batch_size, shuffle=True)    
-    validation_steps = math.ceil(val_batches.samples / val_batches.batch_size)
+    val_batches = get_batches_aps_train('valid', zones, data_shape, channels=channels, batch_size=batch_size, shuffle=True, img_scale=img_scale)    
+    validation_steps = math.ceil(val_batches.samples / val_batches.batch_size) * 4
     print(f"validation sample size: {val_batches.samples}")
     print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
     
@@ -377,7 +377,7 @@ def testm(model_file, src='test', batch_size=6, evaluate=True):
     data_shape = (len(zone_aps_generator.ZONE_SLICE_DICT[zones[0]]),) + (img_dim, img_dim)
 
     img_scale = True if mtype=='vgg16' else False
-    test_batches = get_batches_aps(src, zones, data_shape, channels=channels, batch_size=batch_size, shuffle=False, labels=evaluate, img_scale=img_scale)
+    test_batches = get_batches_aps_test(src, zones, data_shape, channels=channels, batch_size=batch_size, shuffle=False, labels=evaluate, img_scale=img_scale)
     test_steps = math.ceil(test_batches.samples / test_batches.batch_size)
     print(f"test sample size: {test_batches.samples}")
     print(f"test batch size: {test_batches.batch_size}, steps: {test_steps}")
