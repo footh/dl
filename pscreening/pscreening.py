@@ -485,6 +485,7 @@ def submission_models_results():
     sub_artifact_file_name = os.path.join(config.PSCREENING_HOME, 'submission-artifacts', sub_artifact_file_name)
     submission_results = np.asarray(submission_results)
     np.save(sub_artifact_file_name, submission_results)
+    return sub_artifact_file_name
     
 def submission_model_dict_results():
     submission_results = []
@@ -506,9 +507,13 @@ def submission_model_dict_results():
     sub_artifact_file_name = os.path.join(config.PSCREENING_HOME, 'submission-artifacts', sub_artifact_file_name)
     submission_results = np.asarray(submission_results)
     np.save(sub_artifact_file_name, submission_results)
+    return sub_artifact_file_name
                           
 def write_submission_file(submission_results):
     import csv
+    #arr1 = np.load(os.path.join(config.PSCREENING_HOME, 'submission-artifacts', file1))
+    #arr2 = np.load(os.path.join(config.PSCREENING_HOME, 'submission-artifacts', file2))
+    #submission_results = np.concatenate((arr1, arr2))
     
     print(f"Writing to file...")
     submission_results = [[r[0], int(r[1]), float(r[2])] for r in submission_results]
