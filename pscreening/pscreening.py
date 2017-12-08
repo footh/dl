@@ -416,7 +416,7 @@ def testmc(model_file, zones_array, src='test', batch_size=10, evaluate=True):
     
     _, _, mtype, img_dim, channels = _model_params(model_file)
     
-    data_shape = (len(zone_aps_generator.ZONE_SLICE_DICT[zones[0][0]]),) + (img_dim, img_dim)
+    data_shape = (len(zone_aps_generator.ZONE_SLICE_DICT[zones_array[0][0]]),) + (img_dim, img_dim)
     img_scale = True if mtype=='vgg16' else False
 
     results = []
@@ -489,8 +489,10 @@ def submission_models_results():
 def submission_model_dict_results():
     submission_results = []
     for model_file, zones_array in config.SUBMISSION_MODEL_DICT.items():
+        print(f"Using {model_file} for zones_array {zones_array}...")
         test_results = testmc(model_file, zones_array, src='submission', batch_size=4, evaluate=False)
         tf.keras.backend.clear_session()
+        print(f"Finished getting results...")
         
         for i, zones in enumerate(zones_array):
             results_dict = test_results[i]
@@ -498,6 +500,8 @@ def submission_model_dict_results():
                 for j, zone in enumerate(zones):
                     submission_results.append([id, zone, results[j]])
                     
+                    
+    print(f"Writing submission artifact...")
     sub_artifact_file_name = f"combo-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
     sub_artifact_file_name = os.path.join(config.PSCREENING_HOME, 'submission-artifacts', sub_artifact_file_name)
     submission_results = np.asarray(submission_results)
