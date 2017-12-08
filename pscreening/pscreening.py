@@ -481,7 +481,7 @@ def submission_models_results():
             for i, zone in enumerate(zones):
                 submission_results.append([id, zone, results[i]])
                 
-    sub_artifact_file_name = f"ensemble-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
+    sub_artifact_file_name = f"ensemble-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
     sub_artifact_file_name = os.path.join(config.PSCREENING_HOME, 'submission-artifacts', sub_artifact_file_name)
     submission_results = np.asarray(submission_results)
     np.save(sub_artifact_file_name, submission_results)
@@ -502,7 +502,7 @@ def submission_model_dict_results():
                     
                     
     print(f"Writing submission artifact...")
-    sub_artifact_file_name = f"combo-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
+    sub_artifact_file_name = f"combo-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
     sub_artifact_file_name = os.path.join(config.PSCREENING_HOME, 'submission-artifacts', sub_artifact_file_name)
     submission_results = np.asarray(submission_results)
     np.save(sub_artifact_file_name, submission_results)
@@ -511,6 +511,7 @@ def write_submission_file(submission_results):
     import csv
     
     print(f"Writing to file...")
+    submission_results = [[r[0], int(r[1]), float(r[2])] for r in submission_results]
     submission_results.sort()
     
     submission_file_name = f"submission-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
