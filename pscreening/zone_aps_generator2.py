@@ -46,7 +46,9 @@ ZONE_SLICE_DICT = {
 ZONE_COMBOS_DICT = {
         1: [[1,2], [3,4]],
         5: [[5], [17]],
-        6: [[6], [7]]
+        6: [[6], [7]],
+        8: [[8], [10]],
+        11: [[11], [12]]
     }
 
 class ZoneApsGenerator():

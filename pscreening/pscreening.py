@@ -366,7 +366,7 @@ def train(zones, epochs=1, batch_size=32, learning_rate=0.001,
          
     return model_version
 
-def testm(model_file, src='test', batch_size=6, evaluate=True):
+def testm(model_file, src='test', batch_size=10, evaluate=True):
     if model_file is None:
         print(f"Need model file to test.")
         return
@@ -397,6 +397,46 @@ def testm(model_file, src='test', batch_size=6, evaluate=True):
 
     return results
 
+
+def testmc(model_file, zones_array, src='test', batch_size=10, evaluate=True):
+    """
+        zones argument are the zones to calculate results for. Should look like [[6], [7]] or [[1,2], [3,4]]
+        Return is array of dicts ({id: prob}) corresponding to zones argument
+    """
+    if model_file is None:
+        print(f"Need model file to test.")
+        return
+    
+    if zones_array is None:
+        print(f"Need zones array")
+        
+    model_file_path = os.path.join(config.PSCREENING_HOME, config.MODEL_DIR, model_file)
+    ps_model = tf.keras.models.load_model(model_file_path)
+    ps_model.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001), loss='binary_crossentropy', metrics=['accuracy'])
+    
+    _, _, mtype, img_dim, channels = _model_params(model_file)
+    
+    data_shape = (len(zone_aps_generator.ZONE_SLICE_DICT[zones[0][0]]),) + (img_dim, img_dim)
+    img_scale = True if mtype=='vgg16' else False
+
+    results = []
+    for zones in zones_array:
+        test_batches = get_batches_aps_test(src, zones, data_shape, channels=channels, batch_size=batch_size, shuffle=False, labels=evaluate, img_scale=img_scale)
+        test_steps = math.ceil(test_batches.samples / test_batches.batch_size)
+        print(f"test sample size: {test_batches.samples}")
+        print(f"test batch size: {test_batches.batch_size}, steps: {test_steps}")
+        
+        results = None
+        if evaluate:
+            results = ps_model.evaluate_generator(test_batches, test_steps)
+        else:
+            results = ps_model.predict_generator(test_batches, test_steps)
+            # The 'filenames' argument is expected to be the order of the results since shuffle is set to False
+            ids = [sd.get_file_name(fname) for fname in test_batches.filenames]
+            results.append(dict(zip(ids, results)))
+
+    return results
+
 def _ensemble(results_dict_list):
     """
         Just taking the average...
@@ -415,9 +455,7 @@ def _ensemble(results_dict_list):
     return dict(zip(keys, values))
 
 # TODO: *************** If subtract_mean works well, add it here
-def create_submission_file():
-    import csv
-    
+def submission_models_results():
     # zone_model_dict is a dict of key_zone: [list of model files]
     zone_model_dict = defaultdict(list)
     for model_file in config.SUBMISSION_MODELS:
@@ -432,8 +470,8 @@ def create_submission_file():
             _, zones, _, _, _ = _model_params(model_file)            
 
             print(f"Getting results for key_zone {key_zone} using model_file: {model_file}...")
-            # Clear session after each run? tf.keras.backend.clear_session()
             results_dict = testm(model_file, src='submission', batch_size=4, evaluate=False)
+            tf.keras.backend.clear_session()
             print(f"Finished getting results...")
             results_dict_list.append(results_dict)
             
@@ -443,6 +481,31 @@ def create_submission_file():
             for i, zone in enumerate(zones):
                 submission_results.append([id, zone, results[i]])
                 
+    sub_artifact_file_name = f"ensemble-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
+    sub_artifact_file_name = os.path.join(config.PSCREENING_HOME, 'submission-artifacts', sub_artifact_file_name)
+    submission_results = np.asarray(submission_results)
+    np.save(sub_artifact_file_name, submission_results)
+    
+def submission_model_dict_results():
+    submission_results = []
+    for model_file, zones_array in config.SUBMISSION_MODEL_DICT.items():
+        test_results = testmc(model_file, zones_array, src='submission', batch_size=4, evaluate=False)
+        tf.keras.backend.clear_session()
+        
+        for i, zones in enumerate(zones_array):
+            results_dict = test_results[i]
+            for id, results in results_dict.items():
+                for j, zone in enumerate(zones):
+                    submission_results.append([id, zone, results[j]])
+                    
+    sub_artifact_file_name = f"combo-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
+    sub_artifact_file_name = os.path.join(config.PSCREENING_HOME, 'submission-artifacts', sub_artifact_file_name)
+    submission_results = np.asarray(submission_results)
+    np.save(sub_artifact_file_name, submission_results)
+                          
+def write_submission_file(submission_results):
+    import csv
+    
     print(f"Writing to file...")
     submission_results.sort()
     
@@ -455,15 +518,4 @@ def create_submission_file():
         for submission_result in submission_results:
             id_zone = submission_result[0] + '_Zone' + str(submission_result[1])
             wr.writerow([id_zone, submission_result[2]])
-
-def convert_weights_to_model(file, sn, slices, output):
-    weights_file = os.path.join(config.PSCREENING_HOME, 'submission-weights', file)
-    
-    ps_model = VGG16Model(output=output, multi_gpu=False)
-    ps_model.create(input_shape=(slices,200,200,1))
-    
-    ps_model.model.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001), loss='binary_crossentropy', metrics=['accuracy'])
-    ps_model.model.load_weights(weights_file)
-    
-    ps_model.model.save(os.path.join(config.PSCREENING_HOME, config.MODEL_DIR, f"{sn}-SUBWGHTS.h5"))
-    
+            
