@@ -419,7 +419,7 @@ def testmc(model_file, zones_array, src='test', batch_size=10, evaluate=True):
     data_shape = (len(zone_aps_generator.ZONE_SLICE_DICT[zones_array[0][0]]),) + (img_dim, img_dim)
     img_scale = True if mtype=='vgg16' else False
 
-    results = []
+    zone_results = []
     for zones in zones_array:
         test_batches = get_batches_aps_test(src, zones, data_shape, channels=channels, batch_size=batch_size, shuffle=False, labels=evaluate, img_scale=img_scale)
         test_steps = math.ceil(test_batches.samples / test_batches.batch_size)
@@ -433,9 +433,9 @@ def testmc(model_file, zones_array, src='test', batch_size=10, evaluate=True):
             results = ps_model.predict_generator(test_batches, test_steps)
             # The 'filenames' argument is expected to be the order of the results since shuffle is set to False
             ids = [sd.get_file_name(fname) for fname in test_batches.filenames]
-            results.append(dict(zip(ids, results)))
+            zone_results.append(dict(zip(ids, results)))
 
-    return results
+    return zone_results
 
 def _ensemble(results_dict_list):
     """
