@@ -454,8 +454,7 @@ def _ensemble(results_dict_list):
     
     return dict(zip(keys, values))
 
-# TODO: *************** If subtract_mean works well, add it here
-def submission_models_results():
+def submission_models_results(src='submission'):
     # zone_model_dict is a dict of key_zone: [list of model files]
     zone_model_dict = defaultdict(list)
     for model_file in config.SUBMISSION_MODELS:
@@ -470,7 +469,7 @@ def submission_models_results():
             _, zones, _, _, _ = _model_params(model_file)            
 
             print(f"Getting results for key_zone {key_zone} using model_file: {model_file}...")
-            results_dict = testm(model_file, src='submission', batch_size=4, evaluate=False)
+            results_dict = testm(model_file, src=src, batch_size=4, evaluate=False)
             tf.keras.backend.clear_session()
             print(f"Finished getting results...")
             results_dict_list.append(results_dict)
@@ -487,11 +486,11 @@ def submission_models_results():
     np.save(sub_artifact_file_name, submission_results)
     return sub_artifact_file_name
     
-def submission_model_dict_results():
+def submission_model_dict_results(src='submission'):
     submission_results = []
     for model_file, zones_array in config.SUBMISSION_MODEL_DICT.items():
         print(f"Using {model_file} for zones_array {zones_array}...")
-        test_results = testmc(model_file, zones_array, src='submission', batch_size=4, evaluate=False)
+        test_results = testmc(model_file, zones_array, src=src, batch_size=4, evaluate=False)
         tf.keras.backend.clear_session()
         print(f"Finished getting results...")
         

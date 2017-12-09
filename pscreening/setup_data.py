@@ -365,6 +365,12 @@ def zone_info(zones=17):
     return labels, label_probs
 
 def setup_zones(zones, src='test', positive_count=5, test_count=47):
+    """
+        Splits the data into the train dir and the 'src' dir. 'test_count' samples go into the 'src' dir.
+        'positive_count' are number of samples that have a positive threat. If multiple zones are passed in, there is no
+        accounting for evenly distributing the positive threats, ie. if two zones passed in, all the positives could technically
+        be from one zone.
+    """
     
     train_dir = os.path.join(config.PSCREENING_HOME, config.RAW_DATA_DIR, 'train')
     src_dir = os.path.join(config.PSCREENING_HOME, config.RAW_DATA_DIR, src)
@@ -401,3 +407,15 @@ def setup_zones(zones, src='test', positive_count=5, test_count=47):
     for i in range(test_count-positive_count):
         shutil.move(leftover_train_files[i], src_dir)
         
+def stage2_setup(src='all'):
+    
+    print(f"Generating points file...")
+    points_file(src, padding=True)
+    print(f"Points file created: points-{src}.csv")
+
+    
+    
+    
+    
+    
+    
