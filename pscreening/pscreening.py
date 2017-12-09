@@ -515,8 +515,16 @@ def submission_model_dict_results(src='submission'):
     np.save(sub_artifact_file_name, submission_results)
     print(f"{sub_artifact_file_name}")
     return sub_artifact_file_name
+
+def _fudge_result(prob):
+    if prob > 0.92:
+        return 1.0
+    elif prob < 0.08:
+        return 0.0
+    else:
+        return prob
                           
-def build_submission_file(src='submission', models_file=None, modeldict_file=None):
+def build_submission_file(src='submission', models_file=None, modeldict_file=None, round=False):
     import csv
     
     if models_file is None:
@@ -532,6 +540,9 @@ def build_submission_file(src='submission', models_file=None, modeldict_file=Non
     
     print(f"Writing to file...")
     submission_results = [[r[0], int(r[1]), float(r[2])] for r in submission_results]
+    if round:
+        submission_results = [[r[0], int(r[1]), _fudge_result(r[2])] for r in submission_results]
+    
     submission_results.sort()
     
     submission_file_name = f"submission-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
