@@ -308,17 +308,23 @@ def train(zones, epochs=1, batch_size=32, learning_rate=0.001,
           img_dim=224, channels=1, train_layer_start=None):
     if not isinstance(zones, list): zones = [zones]
     
+    key_zone = zones[0]
+    # This will get the total number of zones in the batches which will inform the steps and the class weights
+    # (found the 'sum' trick on stack overflow)
+    zone_count = len(sum(zone_aps_generator2.ZONE_COMBOS_DICT[key_zone],[]))
+    print(f"zone_count: {zone_count}")
+    
     #data_shape = sd.zones_max_dict(round_up=True)[zones[0]]
-    data_shape = (len(zone_aps_generator2.ZONE_SLICE_DICT[zones[0]]),) + (img_dim, img_dim)
+    data_shape = (len(zone_aps_generator2.ZONE_SLICE_DICT[key_zone]),) + (img_dim, img_dim)
 
     img_scale = True if mtype=='vgg16' else False
     train_batches = get_batches_aps_train('train', zones, data_shape, channels=channels, batch_size=batch_size, shuffle=True, img_scale=img_scale)
-    steps_per_epoch = math.ceil(train_batches.samples / train_batches.batch_size) * 4
+    steps_per_epoch = math.ceil(train_batches.samples / train_batches.batch_size) * 2 * zone_count
     print(f"training sample size: {train_batches.samples}")
     print(f"training batch size: {train_batches.batch_size}, steps: {steps_per_epoch}")
 
     val_batches = get_batches_aps_train('valid', zones, data_shape, channels=channels, batch_size=batch_size, shuffle=True, img_scale=img_scale)    
-    validation_steps = math.ceil(val_batches.samples / val_batches.batch_size) * 4
+    validation_steps = math.ceil(val_batches.samples / val_batches.batch_size) * 2 * zone_count
     print(f"validation sample size: {val_batches.samples}")
     print(f"validation batch size: {val_batches.batch_size}, steps: {validation_steps}")
     
@@ -355,7 +361,7 @@ def train(zones, epochs=1, batch_size=32, learning_rate=0.001,
     
     cb_model_save = callbacks.ModelCheckpoint(model_file, multi_gpu=(gpus is not None))
     
-    weight1 = round(0.9 ** len(zones), 2)
+    weight1 = round(0.9 ** zone_count, 2)
     train_model.fit_generator(train_batches,
                               steps_per_epoch=steps_per_epoch,
                               epochs=epochs,
