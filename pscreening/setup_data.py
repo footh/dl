@@ -49,7 +49,7 @@ def shuffled_files(src):
     """
         Returns array of shuffled files (with full path) from source (train, valid, test, etc.)
     """
-    full_src_dir = os.path.join(config.PSCREENING_HOME, config.RAW_DATA_DIR, src)
+    full_src_dir = os.path.join(config.PSCREENING_LOCAL_HOME, config.RAW_DATA_DIR, src)
     
     src_files = os.listdir(full_src_dir)
     src_files = [os.path.join(full_src_dir, file) for file in src_files if os.path.isfile(os.path.join(full_src_dir, file))]
@@ -363,8 +363,8 @@ def setup_zones(zones, src='test', positive_count=5, test_count=47):
         be from one zone.
     """
     
-    train_dir = os.path.join(config.PSCREENING_HOME, config.RAW_DATA_DIR, 'train')
-    src_dir = os.path.join(config.PSCREENING_HOME, config.RAW_DATA_DIR, src)
+    train_dir = os.path.join(config.PSCREENING_LOCAL_HOME, config.RAW_DATA_DIR, 'train')
+    src_dir = os.path.join(config.PSCREENING_LOCAL_HOME, config.RAW_DATA_DIR, src)
 
     src_files = shuffled_files(src)
     print(f"Moving {src} files back to train...")

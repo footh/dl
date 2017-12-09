@@ -309,7 +309,7 @@ def train(zones, epochs=1, batch_size=32, learning_rate=0.001,
     if not isinstance(zones, list): zones = [zones]
     
     key_zone = zones[0]
-    # This will get the total number of zones in the batches which will inform the steps and the class weights
+    # This will get the total number of zones in the batches which will inform the steps
     # (found the 'sum' trick on stack overflow)
     zone_count = len(sum(zone_aps_generator2.ZONE_COMBOS_DICT[key_zone],[]))
     print(f"zone_count: {zone_count}")
@@ -361,7 +361,7 @@ def train(zones, epochs=1, batch_size=32, learning_rate=0.001,
     
     cb_model_save = callbacks.ModelCheckpoint(model_file, multi_gpu=(gpus is not None))
     
-    weight1 = round(0.9 ** zone_count, 2)
+    weight1 = round(0.9 ** len(zones), 2)
     train_model.fit_generator(train_batches,
                               steps_per_epoch=steps_per_epoch,
                               epochs=epochs,
