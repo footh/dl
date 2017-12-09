@@ -486,10 +486,11 @@ def submission_models_results(src='submission'):
             for i, zone in enumerate(zones):
                 submission_results.append([id, zone, results[i]])
                 
-    sub_artifact_file_name = f"ensemble-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    sub_artifact_file_name = f"models-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.npy"
     sub_artifact_file_name = os.path.join(config.PSCREENING_HOME, 'submission-artifacts', sub_artifact_file_name)
     submission_results = np.asarray(submission_results)
     np.save(sub_artifact_file_name, submission_results)
+    print(f"{sub_artifact_file_name}")
     return sub_artifact_file_name
     
 def submission_model_dict_results(src='submission'):
@@ -508,17 +509,26 @@ def submission_model_dict_results(src='submission'):
                     
                     
     print(f"Writing submission artifact...")
-    sub_artifact_file_name = f"combo-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    sub_artifact_file_name = f"modeldict-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.npy"
     sub_artifact_file_name = os.path.join(config.PSCREENING_HOME, 'submission-artifacts', sub_artifact_file_name)
     submission_results = np.asarray(submission_results)
     np.save(sub_artifact_file_name, submission_results)
+    print(f"{sub_artifact_file_name}")
     return sub_artifact_file_name
                           
-def write_submission_file(file1, file2):
+def build_submission_file(src='submission', models_file=None, modeldict_file=None):
     import csv
-    arr1 = np.load(file1)
-    arr2 = np.load(file2)
-    submission_results = np.concatenate((arr1, arr2))
+    
+    if models_file is None:
+        models_file = submission_models_results(src=src)
+        
+    if modeldict_file is None:
+        modeldict_file = submission_model_dict_results(src=src)
+
+    models_arr = np.load(models_file)
+    modeldict_arr = np.load(modeldict_file)
+    
+    submission_results = np.concatenate((models_arr, modeldict_arr))
     
     print(f"Writing to file...")
     submission_results = [[r[0], int(r[1]), float(r[2])] for r in submission_results]
