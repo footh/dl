@@ -14,20 +14,29 @@ Running predictions:
 
 1. Place all the stage 2 .a3daps files in the ./raw-data/all directory.
 
-2. Open a python CLI and run:
+2. Within a python CLI run:
 
+```python
 import setup_data as sd
-sd.stage2_setup()
+sd.points_file()
+```
 
-This script will pre-compute rectangles for the various zones and place it in a file called 'points-all.csv'.
+This will pre-compute rectangles for the various zones and place it in a file called 'points-all.csv'.
 It takes about 4 seconds per file. This could be done on the fly during prediction, but with multiple models it's
 faster to just do it ahead of time.
 
+3. Within a python CLI run:
+
+```python
+import pscreening
+pscreening.build_submission_file(src='all')
+```
 
 
 
 'models' directory
 'submissions' directory
+'submission-artifacts' directory
 'raw-data/all' directory
 'tf_builds' directory
 

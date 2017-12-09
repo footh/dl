@@ -158,7 +158,7 @@ def setup_data(num_valid=None, num_test=None, ext='a3daps', to_npy=False):
     print('Copying %s training files' % (labeled_count - (valid_count + test_count)))
     __copy_files(shuffled_files[(valid_count + test_count):], all_src_dir, train_dir, ext=ext, to_npy=to_npy)
 
-def points_file(src='train', padding=False):
+def points_file(src='all', padding=True):
     """
         Creates points file for the given 'src' files ('train', 'valid', 'test', etc)
     """
@@ -398,11 +398,6 @@ def setup_zones(zones, src='test', positive_count=5, test_count=47):
     for i in range(test_count-positive_count):
         shutil.move(leftover_train_files[i], src_dir)
         
-def stage2_setup(src='all'):
-    
-    print(f"Generating points file...")
-    points_file(src, padding=True)
-    print(f"Points file created: points-{src}.csv")
 
     
     
