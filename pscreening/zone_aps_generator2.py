@@ -45,11 +45,8 @@ ZONE_SLICE_DICT = {
 
 ZONE_COMBOS_DICT = {
         1: [[1,2], [3,4]],
-        5: [[5], [17]],
-        6: [[6], [7]],
-        8: [[8], [10]],
-        11: [[11], [12], [13], [14], [15], [16]]
-}
+        6: [[6], [7], [8], [10], [11], [12], [13], [14], [15], [16]]
+    }
 
 class ZoneApsGenerator():
     def __init__(self, 
@@ -348,7 +345,9 @@ class ZoneApsFileIterator(Iterator):
         if random.randint(0,1): slice_data = slice_data[:,:,::-1,:]
         # Randomly flip the temporal row
         if random.randint(0,1): slice_data = slice_data[::-1,...]
-
+        # Random flip the image upside down
+        #if random.randint(0,1): slice_data = slice_data[:,::-1,:,:]
+        
         return slice_data
 
     def next(self):
