@@ -361,7 +361,7 @@ def train(zones, epochs=1, batch_size=32, learning_rate=0.001,
     
     cb_model_save = callbacks.ModelCheckpoint(model_file, multi_gpu=(gpus is not None))
     
-    weight1 = round(0.9 ** zone_count, 2)
+    weight1 = round(0.9 ** min(zone_count, 6), 2)
     train_model.fit_generator(train_batches,
                               steps_per_epoch=steps_per_epoch,
                               epochs=epochs,

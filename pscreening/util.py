@@ -199,7 +199,7 @@ def draw_zones(file=None, slices=range(16), src_dir='train', save_file='zone_tes
         file = setup_data.shuffled_files(src_dir)[0]
         print(file)
 
-    print(f"threat zones: {setup_data.get_zones(setup_data.get_file_name(file))}")
+    #print(f"threat zones: {setup_data.get_zones(setup_data.get_file_name(file))}")
     
     file_images = read_data(file, as_images=True)
 
