@@ -1,3 +1,18 @@
+## Passenger Screening Algorithm Challenge
+
+* zones.py: used to parse the 16 frame files into the 17 body zone parts 
+* zones_config.py: static configuration for parsing the body zones, padding for example
+* zone_generator.py, zone_aps_generator.py, zone_aps_generator2.py: generator code that produces zones input for training. The latter one, which works directly with aps files was used in the final solution
+* util.py: contains utility methods, mainly for reading the unique file types and for debugging
+* trainer.py: allows for single entry point to train model
+* tf_util.py: allows for training on multiple GPUs. File taken directly from Keras library and modified to fix bugs
+* tf_trainer.py: playing with the Tensorflow Estimator interface. Ultimately not used.
+* setup_data.py: contains methods to preprocess and prepare the data for training
+* sandbox.py: experimental code
+* pscreening.py: contains parent model class and child classes that implement a specific pre-trained model. Contains training and evaluation code as well as the code that generates the submission file.
+* config.py: global static configuration
+* callbacks.py: taken from Keras, allows for saving of model at epoch end
+
 ## Setting up environment:
 
 1. Install Python 3.6. I used the anaconda distribution and tested these instructions on this recent release:
